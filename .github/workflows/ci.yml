@@ -19,6 +19,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+      - name: Build Vercel functions offline (no credentials or deployment)
+        run: |
+          mkdir -p .vercel "$RUNNER_TEMP/vercel-offline"
+          cp fixtures/vercel-project.json .vercel/project.json
+          touch .vercel/.env.preview.local
+          pnpm dlx vercel@59.11.7 build --global-config "$RUNNER_TEMP/vercel-offline"
 
   infra:
     runs-on: ubuntu-latest

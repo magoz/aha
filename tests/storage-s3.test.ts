@@ -1,12 +1,12 @@
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 
-import { S3Client } from '@aws-sdk/client-s3'
+import { S3Client, S3ServiceException } from '@aws-sdk/client-s3'
 import { afterEach, beforeEach, describe, expect, it } from '@effect/vitest'
 import { Effect, Predicate, Schema } from 'effect'
 
 import { parsePlanId } from '../lib/plan-id.js'
-import { makeS3Storage } from '../lib/storage-s3.js'
+import { isMissing, makeS3Storage } from '../lib/storage-s3.js'
 import { htmlBytes } from './helpers.js'
 
 const ID_A = 'AAAAAAAAAAAAAAAAAAAAAA'
@@ -88,12 +88,21 @@ describe('s3 storage against a stub S3 endpoint', () => {
   let port = 0
   let puts: Array<SeenPut> = []
   let lists: Array<string> = []
+  let markerStatus = 404
 
   beforeEach(async () => {
     puts = []
     lists = []
+    markerStatus = 404
     server = createServer((req, res) => {
       const parsed = new URL(req.url ?? '/', 'http://localhost')
+
+      if (req.method === 'HEAD' && parsed.pathname.startsWith('/test-bucket/public/')) {
+        res.statusCode = markerStatus
+        res.end()
+
+        return
+      }
 
       if (req.method === 'PUT' && parsed.pathname.startsWith('/test-bucket/plans/')) {
         req.resume()
@@ -150,11 +159,40 @@ describe('s3 storage against a stub S3 endpoint', () => {
       region: 'us-east-1',
       endpoint: `http://127.0.0.1:${String(port)}`,
       credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
-      forcePathStyle: true
+      forcePathStyle: true,
+      maxAttempts: 1
     })
 
     return makeS3Storage(client, 'test-bucket')
   }
+
+  it('does not treat an explicit missing bucket as a missing object', () => {
+    const failure = new S3ServiceException({
+      name: 'NoSuchBucket',
+      $fault: 'client',
+      $metadata: { httpStatusCode: 404 }
+    })
+
+    expect(isMissing(failure)).toBe(false)
+  })
+
+  it.effect('an absent marker is private, but access and service failures stay errors', () =>
+    Effect.gen(function* () {
+      const storage = makeStorage()
+      const id = yield* parsePlanId(ID_A)
+      const absent = yield* storage.markerExists(id)
+
+      expect(absent).toBe(false)
+
+      for (const status of [403, 500]) {
+        markerStatus = status
+
+        const failure = yield* Effect.flip(storage.markerExists(id))
+
+        expect(Predicate.isTagged(failure, 'StorageUnavailable')).toBe(true)
+      }
+    })
+  )
 
   it.effect('putDocument sends If-Match and returns the PUT ETag', () =>
     Effect.gen(function* () {

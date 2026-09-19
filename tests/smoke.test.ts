@@ -1,12 +1,12 @@
-import { createServer } from 'node:http'
-import type { IncomingMessage, Server, ServerResponse } from 'node:http'
+import { request as httpRequest } from 'node:http'
+import type { Server } from 'node:http'
 
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 
-import type { HeaderMap } from '../lib/headers.js'
+import { MAX_HTML_BYTES } from '../lib/html-limits.js'
 import { handlePlansRequest } from '../lib/http.js'
-import type { PlansResponse } from '../lib/http.js'
+import { createPlansServer } from '../server/node-adapter.js'
 import { TEST_CONFIG, htmlBytes, makeTestContext, ownerAuth } from './helpers.js'
 import type { TestContext } from './helpers.js'
 
@@ -20,90 +20,31 @@ const CreatedPayload = Schema.Struct({
   etag: Schema.String
 })
 
-function lowercaseHeaders(req: IncomingMessage): HeaderMap {
-  const out: HeaderMap = {}
-  const raw = req.headers
-
-  for (const key of Object.keys(raw)) {
-    const value = raw[key]
-
-    if (value === undefined) {
-      continue
-    }
-
-    if (Array.isArray(value)) {
-      const first = value[0]
-
-      if (first === undefined) {
-        continue
-      }
-
-      out[key.toLowerCase()] = first
-    } else {
-      out[key.toLowerCase()] = value
-    }
-  }
-
-  return out
-}
-
-function writeResponse(res: ServerResponse, response: PlansResponse): void {
-  res.statusCode = response.status
-
-  for (const key of Object.keys(response.headers)) {
-    const value = response.headers[key]
-
-    if (value !== undefined) {
-      res.setHeader(key, value)
-    }
-  }
-
-  if (response.body === null) {
-    res.end()
-  } else {
-    res.end(Buffer.from(response.body))
-  }
-}
-
 function createTestServer(ctx: TestContext): Server {
-  return createServer((req, res) => {
-    const chunks: Array<Uint8Array> = []
+  return createPlansServer((request) =>
+    handlePlansRequest(request, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+  )
+}
 
-    req.on('data', (chunk: Uint8Array) => {
-      chunks.push(chunk)
-    })
-
-    req.on('end', () => {
-      let total = 0
-
-      for (const chunk of chunks) {
-        total += chunk.length
+function oversizedChunkedRequest(port: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      `http://127.0.0.1:${String(port)}/api/documents`,
+      { method: 'POST', headers: { 'content-type': 'text/html' } },
+      (response) => {
+        expect(response.headers['cache-control']).toBe('no-store')
+        response.resume()
+        response.on('end', () => {
+          resolve(response.statusCode ?? 0)
+          request.destroy()
+        })
       }
+    )
 
-      const body = total === 0 ? null : Buffer.concat(chunks)
-
-      const program = Effect.gen(function* () {
-        return yield* handlePlansRequest(
-          {
-            method: req.method ?? 'GET',
-            url: req.url ?? '/',
-            headers: lowercaseHeaders(req),
-            body
-          },
-          TEST_CONFIG
-        ).pipe(Effect.provide(ctx.layer))
-      })
-
-      Effect.runPromise(program).then(
-        (response) => {
-          writeResponse(res, response)
-        },
-        () => {
-          res.statusCode = 500
-          res.end('internal error')
-        }
-      )
-    })
+    request.on('error', reject)
+    request.setTimeout(5000, () => request.destroy(new Error('no early overflow response')))
+    request.write(Buffer.alloc(MAX_HTML_BYTES + 1, 65))
+    // Intentionally never end the request: overflow must fail before end-of-stream.
   })
 }
 
@@ -244,6 +185,19 @@ function runLifecycle(port: number): Effect.Effect<void, Error> {
 }
 
 describe('node http smoke lifecycle', () => {
+  it.effect('rejects an unfinished oversized upload in the actual Node adapter', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+      const server = createTestServer(ctx)
+      const port = yield* listenTestServer(server)
+
+      yield* Effect.tryPromise(() => oversizedChunkedRequest(port)).pipe(
+        Effect.tap((status) => Effect.sync(() => expect(status).toBe(413))),
+        Effect.ensuring(closeTestServer(server).pipe(Effect.orDie))
+      )
+    })
+  )
+
   it.effect(
     'upload, publish, read, update, unpublish and delete over real http',
     () =>

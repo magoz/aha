@@ -29,5 +29,6 @@
       ]
     }
   ],
+  "devCommand": "pnpm dev",
   "outputDirectory": "public"
 }

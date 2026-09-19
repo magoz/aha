@@ -2,9 +2,12 @@
 
 ## Vercel
 
-- Connect this repository. No build command is required for the service;
-  Vercel compiles `api/**/*.ts` as Node 24 serverless functions.
-- Set `PLANS_OWNER_TOKEN`, `PLANS_PRIVATE_READ_TOKEN`, `R2_ACCOUNT_ID`,
+- Connect this repository as framework **Other**, Node 24, with `pnpm run build`.
+  Vercel also compiles `api/**/*.ts` as Node 24 serverless functions. Keep
+  `.npmrc`'s hoisted dependency layout: the Vercel TypeScript compiler cannot
+  resolve the SDK's transitive Smithy declarations with pnpm's isolated linker.
+  Do not disable strict checking or add casts to hide this resolution failure.
+- Set `PLANS_OWNER_TOKEN`, `PLANS_PRIVATE_READ_TOKEN`,
   `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`
   (`R2_REGION` optional, default `auto`) in the project environment.
 - `vercel.json` routes `/` to a static greeting, `/api/health` to a health
@@ -12,6 +15,19 @@
   base64url) to the public document function. No raw object routes exist.
 - Attach the `plans.oox.sh` domain after review. The R2 bucket and any direct
   access domains stay private and disabled.
+
+## Platform build gate
+
+CI runs `pnpm verify`, then a real Vercel function build using synthetic project
+settings in `fixtures/vercel-project.json` and an empty auth directory. No
+Vercel credentials, R2 credentials, environment pull, or deployment are needed.
+The fixture is for CI only; never replace a real project's `.vercel/project.json`
+with it. This catches platform-specific compiler failures the ordinary build
+cannot detect.
+
+Before an authorized live deployment, run `vercel build` in a linked checkout
+with the intended environment. Build success alone does not prove live R2
+permissions, custom-domain routing, TLS, or split DNS; verify those separately.
 
 ## Private gateway and split DNS
 

@@ -235,6 +235,43 @@ describe('http boundary', () => {
       if (rangedBody !== null) {
         expect(bytesToString(rangedBody)).toBe(SAMPLE)
       }
+
+      yield* handlePlansRequest(
+        {
+          method: 'POST',
+          url: `/api/documents/${id}/unpublish`,
+          headers: { authorization: ownerAuth() },
+          body: null
+        },
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      const variants: ReadonlyArray<Pick<PlansRequest, 'method' | 'headers'>> = [
+        { method: 'GET', headers: {} },
+        { method: 'HEAD', headers: {} },
+        { method: 'GET', headers: { 'if-none-match': etag } },
+        { method: 'HEAD', headers: { 'if-none-match': etag } },
+        { method: 'GET', headers: { range: 'bytes=0-10' } }
+      ]
+
+      for (const url of [`/${id}`, `/api/documents/${id}`]) {
+        for (const variant of variants) {
+          const denied = yield* handlePlansRequest(
+            { method: variant.method, headers: variant.headers, url, body: null },
+            TEST_CONFIG
+          ).pipe(Effect.provide(ctx.layer))
+
+          expect(denied.status).toBe(url.startsWith('/api/') ? 401 : 404)
+          expect(denied.headers['cache-control']).toBe('no-store')
+          expect(responseText(denied)).not.toContain(SAMPLE)
+        }
+
+        const privateRead = yield* handlePlansRequest(get(url, privateAuth()), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+
+        expect(privateRead.status).toBe(200)
+      }
     })
   )
 

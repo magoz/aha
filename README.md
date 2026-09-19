@@ -67,7 +67,6 @@ Uploads are bounded to 2 MiB with real byte accounting; non-`text/html` content 
 | -------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `PLANS_OWNER_TOKEN`        | yes (service) | Owner bearer credential for mutations and listing.                                                                                     |
 | `PLANS_PRIVATE_READ_TOKEN` | yes (service) | Private-read bearer for document `GET`/`HEAD` only. Distinct from owner token.                                                         |
-| `R2_ACCOUNT_ID`            | yes           | Cloudflare account ID for S3-compatible R2 access.                                                                                     |
 | `R2_ACCESS_KEY_ID`         | yes           | R2 S3 access key.                                                                                                                      |
 | `R2_SECRET_ACCESS_KEY`     | yes           | R2 S3 secret. Secret, never logged.                                                                                                    |
 | `R2_BUCKET`                | yes           | Private bucket name (`plans-prod` / `plans-dev`).                                                                                      |
@@ -118,4 +117,4 @@ See `docs/` for details. No host changes are made by this repository.
 
 ## Validation
 
-`pnpm verify` runs format check, typecheck, lint, tests and build. Tests cover absent/present/deleted markers, owner/private-read/public separation, storage-unavailable denial, `HEAD`/range/conditional handling, path traversal and invalid IDs, upload limits including absent/wrong `Content-Length`, invalid/missing config, update visibility preservation, private proxy path/redirect/header restrictions, CLI parsing and JSON output, and a Node HTTP smoke lifecycle. CI runs frozen install plus `pnpm verify` with no deployment credentials.
+`pnpm verify` runs format check, typecheck, lint, tests and build. Tests cover absent/present/deleted markers, owner/private-read/public separation, storage-unavailable denial, `HEAD`/range/conditional handling, path traversal and invalid IDs, upload limits including absent/wrong `Content-Length`, invalid/missing config, update visibility preservation, private proxy path/redirect/header restrictions, CLI parsing and JSON output, and a Node HTTP smoke lifecycle. CI runs frozen install, `pnpm verify`, an offline Vercel function build, and isolated infrastructure checks, all without deployment credentials. See [the platform build gate](docs/deployment.md#platform-build-gate).

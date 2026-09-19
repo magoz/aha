@@ -64,10 +64,14 @@ function failureStatus(cause: unknown): number | undefined {
   return metadata.httpStatusCode
 }
 
-function isMissing(cause: unknown): boolean {
+export function isMissing(cause: unknown): boolean {
   const code = failureCode(cause)
 
-  if (code === 'NotFound' || code === 'NoSuchKey' || code === 'NoSuchBucket') {
+  if (code === 'NoSuchBucket') {
+    return false
+  }
+
+  if (code === 'NotFound' || code === 'NoSuchKey') {
     return true
   }
 

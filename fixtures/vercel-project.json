@@ -1,0 +1,11 @@
+{
+  "projectId": "offline-plans",
+  "orgId": "offline",
+  "settings": {
+    "framework": null,
+    "nodeVersion": "24.x",
+    "outputDirectory": "public",
+    "buildCommand": "pnpm run build",
+    "installCommand": "pnpm install --frozen-lockfile"
+  }
+}
