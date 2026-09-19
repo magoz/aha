@@ -1,0 +1,25 @@
+{
+  "name": "plans-infra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Alchemy Cloudflare R2 provisioning for plans. Operator-run only; core never imports Alchemy.",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "plan": "alchemy plan",
+    "deploy": "alchemy deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "alchemy": "2.0.0-beta.74",
+    "effect": "4.0.0-rc.112",
+    "@effect/platform-node": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}
