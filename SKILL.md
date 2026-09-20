@@ -10,7 +10,8 @@ instruction.
 
 1. Write one self-contained `.html` file: inline `<style>` only, no
    `<script>`, no forms, no frames, no external resources. Keep it under 2 MiB.
-   Start from `templates/plan.html` in this repository and follow the
+   Start from `templates/note.html` (short) or `templates/plan.html` (long) in
+   this repository and follow the
    [document style](#document-style) below.
 2. Upload privately and capture the URL:
 
@@ -32,51 +33,57 @@ instruction.
 
 ## Document style
 
-`templates/plan.html` is the reference document: a complete, fictional
-engineering plan showing every component in the house style. Copy its
-`<style>` block verbatim and reuse its markup patterns; change content, not the
-stylesheet. The goal is a page that looks typeset by a careful person, not a
-landing page.
+Two reference documents carry the house style; copy the `<style>` block of the
+matching one verbatim and reuse its markup patterns. Change content, not the
+stylesheet (append a few lines only for a component the reference lacks, in
+the same idiom).
 
-**Structure.** Kicker line (document id · owner · status badge), one `h1`,
-metadata `<dl>` (status, date, target, owner, reviewers), contents list, then
-numbered sections. Typical order for an aha: summary, problem, goals and
-non-goals, architecture, options and decision, key numbers, phases, work items,
-implementation notes, risks, open questions, rollback, glossary, references.
-Drop sections that do not apply; never add filler ones ("Introduction",
-"Conclusion").
+- `templates/note.html` — a short note (most ahas): explainer, concept
+  walkthrough, comparison, decision. Kicker line, `h1`, content. No metadata
+  block, no contents list.
+- `templates/plan.html` — a long document (roughly six or more sections, or a
+  plan/RFC): metadata block with only the fields that apply, contents list,
+  numbered sections.
 
-**Typography.** Warm paper (`#f6f1e8`) and warm ink (`#2a2420`), never pure
-black on white. System serif for headings, blockquotes and the decision;
-humanist system sans for body at 17–18 px on a ~38 rem measure; `ui-monospace`
-for identifiers, numbers in tables and code. Five type sizes only. Vertical
-rhythm from one spacing unit. No web fonts.
+The style is "mono technical": a beautifully typeset README, not a landing
+page and not an academic paper.
 
-**Color.** One accent, moss green (`--accent: #3f6b4a`, dark `#8fbf98`), used
-only for meaning: the recommended option, the decision, open items, footnote
-markers, the highlighted box in a diagram. Warnings use a separate red
-(`--warn: #b3261e`, dark `#e0705f`). Everything else is ink, muted ink and
-hairlines. Dark mode is a tuned palette, not an inversion; print collapses to
-black on white.
+**Typography.** Monospace (`ui-monospace, "SF Mono", Menlo, Consolas`) for the
+`h1`, section headers, labels, metadata, tables, code, contents, and captions.
+System sans (`system-ui`) for body paragraphs at 16 px, line-height 1.5, prose
+capped at 40 rem inside a 44 rem page. Five sizes only: 28 / 20 / 16 / 13 /
+11 px. Section headers read `01 — TITLE` in small mono caps above a hairline,
+with an optional right-aligned mono aside (`5 weeks`, `3 open`). Spacing on a
+24 px unit. No serif anywhere, no web fonts.
 
-**Components.** Callouts (`note`, `decision`, `warning`) are left-ruled
-paragraphs with a small uppercase label, no fill. Badges are thin bordered
-pills (Draft, Recommended, Done, Open, Blocked). Tables have hairline rows and
-scroll horizontally inside a wrapper on narrow screens. Diagrams are inline
-SVG with 1 px `currentColor` boxes, polygon arrowheads, and a label on every
-box; use `<figure>` with a numbered caption. Code sits in `<pre>` with a faint
-background and no syntax colors; show changes as a diff. Footnotes are real
-footnotes with return links. Glossaries use `<dl>`.
+**Color.** Light: paper `#faf8f4`, ink `#1b1a18`, muted `#6b6862`, rule
+`#d8d4cc`, hairline `#e8e5de`. Dark (`prefers-color-scheme`): paper `#1d1d1c`,
+ink `#e4e2dd`, muted `#9a9790`, rule `#3c3b38`, hairline `#2d2c2a`. Accent
+moss `#3f6b4a` / `#8fbf98` only for meaning: recommended, decision, open items,
+`+` diff lines, footnote marks, the one highlighted box in a diagram. Warning
+red `#b3261e` / `#e0705f` only for warnings. Print collapses to black on white.
+
+**Components.** Hairline 1 px boxes and rules, sharp corners (no radius).
+Callouts (`note`, `decision`, `warning`) are a left rule plus a small mono
+label, no fill. Badges are thin bordered mono pills. Tables have a mono header
+row and scroll horizontally inside a wrapper on narrow screens. Key numbers are
+a real table, not stat cards. Phases and steps use the timeline pattern (mono
+markers on a hairline spine). Task lists use `[x]`/`[ ]` mono checkboxes.
+Diagrams are inline SVG: square 1 px `currentColor` boxes, polygon arrowheads,
+a label on every box, `<figure>` with a numbered mono caption. Code sits in
+`<pre>` with a hairline border and no syntax colors; show changes as a diff.
+Footnotes are real footnotes with return links. Glossaries use `<dl>`.
 
 **Writing.** Specific numbers over adjectives, short sentences, no
-exclamation marks, no marketing tone. State the decision and its trade-off in
-one callout. Every phase has a duration and exit criteria; every risk has a
-mitigation; every open question has an owner.
+exclamation marks, no marketing tone, no "in this note we will". State a
+decision and its trade-off in one callout. Every phase has a duration and exit
+criteria; every risk has a mitigation; every open question has an owner. Be
+correct: a senior engineer reads these.
 
-**Never.** Gradients, shadows, glassmorphism, tinted cards everywhere,
-purple/indigo palettes, emoji, decorative icons, centered hero sections,
-rounded-everything, fake progress bars, stock illustrations, margin notes, a
-second accent color.
+**Never.** Gradients, shadows, glassmorphism, tinted cards, rounded corners,
+purple/indigo palettes, emoji, icons, centered hero sections, fake progress
+bars, stock illustrations, neon or glow "terminal" effects, margin notes, a
+second accent color, a serif.
 
 ## Rules
 

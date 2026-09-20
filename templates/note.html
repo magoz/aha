@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Why one URL can show two different things · aha.oox.sh split DNS</title>
+    <style>
+      /* ---------- tokens ---------- */
+      :root {
+        --paper: #faf8f4;
+        --ink: #1b1a18;
+        --muted: #6b6862;
+        --rule: #d8d4cc;
+        --hair: #e8e5de;
+        --accent: #3f6b4a;
+        --warn: #b3261e;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+        --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        /* type scale: 28 / 20 / 16 / 13 / 11 */
+        --t-xl: 1.75rem;
+        --t-lg: 1.25rem;
+        --t-md: 1rem;
+        --t-sm: 0.8125rem;
+        --t-xs: 0.6875rem;
+        --measure: 44rem;
+        --unit: 1.5rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #1d1d1c;
+          --ink: #e4e2dd;
+          --muted: #9a9790;
+          --rule: #3c3b38;
+          --hair: #2d2c2a;
+          --accent: #8fbf98;
+          --warn: #e0705f;
+        }
+      }
+
+      /* ---------- base ---------- */
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--paper);
+        color: var(--ink);
+      }
+      body {
+        margin: 0;
+        padding: 2rem 1.25rem 4rem;
+        font-family: var(--sans);
+        font-size: var(--t-md);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      @media (min-width: 48rem) {
+        body {
+          padding: 3.5rem 3rem 6rem;
+        }
+      }
+      main,
+      header.doc,
+      footer.doc {
+        max-width: var(--measure);
+        margin: 0 auto;
+      }
+
+      h1,
+      h2,
+      h3,
+      .mono,
+      table,
+      dl.meta,
+      .toc,
+      .badge,
+      kbd,
+      code,
+      pre,
+      .timeline .wk,
+      .tasks,
+      .lbl,
+      .footnotes,
+      .refs {
+        font-family: var(--mono);
+      }
+      h1 {
+        font-size: var(--t-xl);
+        line-height: 1.25;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0.75rem 0 var(--unit);
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: var(--t-sm);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 3rem 0 var(--unit);
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--rule);
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+      }
+      h2 .n {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      h2 .aside {
+        font-weight: 400;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        text-transform: none;
+      }
+      h3 {
+        font-size: var(--t-md);
+        font-weight: 600;
+        margin: var(--unit) 0 0.5rem;
+        line-height: 1.5;
+      }
+      p {
+        margin: 0 0 1rem;
+        max-width: 40rem;
+      }
+      ul,
+      ol {
+        margin: 0 0 1rem;
+        padding-left: 1.25rem;
+        max-width: 40rem;
+      }
+      li {
+        margin-bottom: 0.25rem;
+      }
+      li::marker {
+        color: var(--muted);
+      }
+      a {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-color: var(--rule);
+        text-underline-offset: 0.15em;
+      }
+      a:hover {
+        text-decoration-color: currentColor;
+      }
+      strong {
+        font-weight: 600;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--rule);
+        margin: var(--unit) 0;
+      }
+
+      code,
+      kbd {
+        font-family: var(--mono);
+        font-size: 0.875em;
+      }
+      p code,
+      li code,
+      td code,
+      dd code {
+        padding: 0 0.25em;
+        border: 1px solid var(--hair);
+        background: none;
+      }
+      kbd {
+        display: inline-block;
+        padding: 0 0.4em;
+        border: 1px solid var(--rule);
+        border-bottom-width: 2px;
+        line-height: 1.4;
+        font-size: 0.8em;
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: var(--t-sm);
+        line-height: 1.6;
+        margin: 0 0 var(--unit);
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--rule);
+        overflow-x: auto;
+        tab-size: 2;
+      }
+      pre code {
+        font-size: inherit;
+      }
+      pre .add {
+        color: var(--accent);
+      }
+      pre .cm {
+        color: var(--muted);
+      }
+
+      /* ---------- header ---------- */
+      .kicker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .kicker .sep {
+        color: var(--rule);
+      }
+      dl.meta {
+        display: grid;
+        grid-template-columns: 6rem 1fr;
+        gap: 0.25rem 1rem;
+        margin: 0 0 var(--unit);
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--rule);
+        font-size: var(--t-sm);
+        line-height: 1.6;
+      }
+      dl.meta > div {
+        display: contents;
+      }
+      dl.meta dt {
+        color: var(--muted);
+        text-transform: lowercase;
+        margin: 0;
+      }
+      dl.meta dd {
+        margin: 0;
+      }
+      @media (min-width: 40rem) {
+        dl.meta {
+          grid-template-columns: 6rem 1fr 6rem 1fr;
+        }
+      }
+
+      /* ---------- badges ---------- */
+      .badge {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        line-height: 1.4;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0 0.4em;
+        border: 1px solid currentColor;
+        color: var(--muted);
+        vertical-align: 0.1em;
+        white-space: nowrap;
+      }
+      .badge.ok {
+        color: var(--accent);
+      }
+      .badge.warn {
+        color: var(--warn);
+      }
+
+      /* ---------- toc ---------- */
+      .toc {
+        font-size: var(--t-sm);
+        border: 1px solid var(--rule);
+        padding: 0.75rem 1rem;
+        margin: 0 0 var(--unit);
+      }
+      .toc .lbl {
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+      .toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-width: none;
+        columns: 1;
+        column-gap: 2rem;
+      }
+      .toc li {
+        margin: 0;
+        line-height: 1.75;
+        break-inside: avoid;
+      }
+      .toc li .n {
+        color: var(--muted);
+        display: inline-block;
+        width: 2.25rem;
+      }
+      .toc a {
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
+      @media (min-width: 40rem) {
+        .toc ol {
+          columns: 2;
+        }
+      }
+
+      .lbl {
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      /* ---------- tables ---------- */
+      .tw {
+        overflow-x: auto;
+        margin: 0 0 var(--unit);
+        border: 1px solid var(--rule);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: var(--t-sm);
+        line-height: 1.5;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--hair);
+      }
+      thead th {
+        font-size: var(--t-xs);
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border-bottom: 1px solid var(--rule);
+        white-space: nowrap;
+      }
+      tbody tr:last-child th,
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      tbody th {
+        font-weight: 500;
+      }
+      table.options {
+        min-width: 40rem;
+      }
+      table.risks {
+        min-width: 36rem;
+      }
+      tr.rec > th {
+        border-left: 2px solid var(--accent);
+      }
+      tr.rec > th,
+      tr.rec > td {
+        color: var(--ink);
+      }
+      td.num,
+      th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      /* key numbers */
+      table.stats th,
+      table.stats td {
+        padding: 0.75rem;
+      }
+      table.stats tbody th {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      table.stats .v {
+        font-size: var(--t-lg);
+        line-height: 1.2;
+        font-weight: 500;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      table.stats .before .v {
+        color: var(--muted);
+      }
+      table.stats .arrow {
+        color: var(--muted);
+        width: 2rem;
+        text-align: center;
+      }
+
+      /* ---------- figures ---------- */
+      figure {
+        margin: 0 0 var(--unit);
+      }
+      figcaption {
+        font-family: var(--mono);
+        font-size: var(--t-sm);
+        color: var(--muted);
+        margin-top: 0.75rem;
+        line-height: 1.5;
+      }
+      .panels {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      @media (min-width: 44rem) {
+        .panels {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .panel {
+        border: 1px solid var(--rule);
+        padding: 0.75rem 1rem 1rem;
+      }
+      .panel .lbl {
+        display: block;
+        margin-bottom: 0.75rem;
+      }
+      .panel .lbl.ok {
+        color: var(--accent);
+      }
+      .diagram {
+        display: block;
+        width: 100%;
+        max-width: 20rem;
+        height: auto;
+        margin: 0 auto;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink);
+      }
+      .diagram rect {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1;
+        vector-effect: non-scaling-stroke;
+      }
+      .diagram line {
+        stroke: currentColor;
+        stroke-width: 1;
+        vector-effect: non-scaling-stroke;
+      }
+      .diagram polygon {
+        fill: currentColor;
+        stroke: none;
+      }
+      .diagram text {
+        fill: currentColor;
+      }
+      .diagram .hi rect {
+        stroke: var(--accent);
+        stroke-width: 1.5;
+      }
+      .diagram .hi text {
+        fill: var(--accent);
+        font-weight: 600;
+      }
+      .diagram .dash {
+        stroke-dasharray: 3 3;
+      }
+      .diagram .small {
+        font-size: 11px;
+      }
+      .diagram .mute {
+        fill: var(--muted);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+      }
+
+      /* ---------- callouts ---------- */
+      .callout {
+        margin: 0 0 var(--unit);
+        padding: 0.25rem 0 0.25rem 1rem;
+        border-left: 2px solid var(--ink);
+        max-width: 40rem;
+      }
+      .callout .lbl {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: inherit;
+      }
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+      .callout.decision {
+        border-left-color: var(--accent);
+      }
+      .callout.decision .lbl {
+        color: var(--accent);
+      }
+      .callout.warning {
+        border-left-color: var(--warn);
+      }
+      .callout.warning .lbl {
+        color: var(--warn);
+      }
+      .callout.note .lbl {
+        color: var(--muted);
+      }
+
+      blockquote {
+        margin: 0 0 var(--unit);
+        padding: 0.25rem 0 0.25rem 1rem;
+        border-left: 1px solid var(--rule);
+        max-width: 40rem;
+      }
+      blockquote p {
+        margin: 0 0 0.5rem;
+      }
+      blockquote cite {
+        font-family: var(--mono);
+        font-style: normal;
+        font-size: var(--t-sm);
+        color: var(--muted);
+      }
+
+      /* ---------- timeline ---------- */
+      .timeline {
+        list-style: none;
+        margin: 0 0 var(--unit);
+        padding: 0;
+        max-width: none;
+      }
+      .timeline li {
+        display: grid;
+        grid-template-columns: 4rem 1fr;
+        gap: 0 1rem;
+        margin: 0;
+      }
+      .timeline .wk {
+        font-size: var(--t-sm);
+        color: var(--muted);
+        padding-top: 0.125rem;
+        white-space: nowrap;
+      }
+      .timeline .body {
+        border-left: 1px solid var(--rule);
+        padding: 0 0 var(--unit) 1rem;
+        position: relative;
+      }
+      .timeline li:last-child .body {
+        padding-bottom: 0.5rem;
+      }
+      .timeline .body::before {
+        content: '';
+        position: absolute;
+        left: -3px;
+        top: 0.55rem;
+        width: 5px;
+        height: 5px;
+        background: var(--ink);
+      }
+      .timeline h3 {
+        margin: 0 0 0.25rem;
+      }
+      .timeline h3 .dur {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: var(--t-sm);
+      }
+      .timeline p {
+        margin: 0 0 0.5rem;
+      }
+      .timeline .exit {
+        font-size: var(--t-sm);
+      }
+      .timeline .exit .lbl {
+        margin-right: 0.5rem;
+      }
+
+      /* ---------- tasks ---------- */
+      .tasks {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 var(--unit);
+        font-size: var(--t-sm);
+        border: 1px solid var(--rule);
+        max-width: 40rem;
+      }
+      .tasks li {
+        display: flex;
+        gap: 0.75rem;
+        align-items: baseline;
+        margin: 0;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid var(--hair);
+      }
+      .tasks li:last-child {
+        border-bottom: 0;
+      }
+      .tasks .box {
+        color: var(--muted);
+        white-space: pre;
+      }
+      .tasks .open .box {
+        color: var(--accent);
+      }
+      .tasks .done .txt {
+        color: var(--muted);
+      }
+      .tasks .txt {
+        flex: 1;
+      }
+
+      /* ---------- questions ---------- */
+      .questions {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 var(--unit);
+      }
+      .questions li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.75rem;
+        align-items: baseline;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--hair);
+        margin: 0;
+      }
+      .questions li:last-child {
+        border-bottom: 0;
+      }
+      .questions .q {
+        flex: 1 1 18rem;
+      }
+      .questions .owner {
+        font-family: var(--mono);
+        font-size: var(--t-sm);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      /* ---------- glossary ---------- */
+      dl.glossary {
+        margin: 0 0 var(--unit);
+        max-width: 40rem;
+      }
+      dl.glossary dt {
+        font-family: var(--mono);
+        font-weight: 600;
+        font-size: var(--t-sm);
+        margin-top: 0.75rem;
+      }
+      dl.glossary dd {
+        margin: 0.125rem 0 0;
+      }
+
+      /* ---------- footer ---------- */
+      .refs {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 var(--unit);
+        font-size: var(--t-sm);
+      }
+      .refs li {
+        margin: 0 0 0.375rem;
+      }
+      .refs .u {
+        color: var(--muted);
+      }
+      .footnotes {
+        font-size: var(--t-sm);
+        color: var(--muted);
+        padding-left: 1.5rem;
+      }
+      .footnotes li {
+        margin-bottom: 0.375rem;
+      }
+      .footnotes li:target {
+        color: var(--ink);
+      }
+      sup {
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        line-height: 0;
+        vertical-align: super;
+      }
+      sup a {
+        text-decoration: none;
+        color: var(--accent);
+      }
+      footer.doc {
+        margin-top: 3rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--rule);
+      }
+      footer.doc .colophon {
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        color: var(--muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.5rem;
+      }
+
+      /* ---------- print ---------- */
+      @media print {
+        :root {
+          --paper: #fff;
+          --ink: #000;
+          --muted: #444;
+          --rule: #999;
+          --hair: #ccc;
+          --accent: #2f5238;
+          --warn: #8f1d17;
+        }
+        html {
+          background: #fff;
+        }
+        body {
+          padding: 0;
+          font-size: 10.5pt;
+        }
+        main,
+        header.doc,
+        footer.doc {
+          max-width: none;
+        }
+        h2 {
+          break-after: avoid;
+          margin-top: 2rem;
+        }
+        h3 {
+          break-after: avoid;
+        }
+        .tw,
+        figure,
+        pre,
+        .callout,
+        blockquote,
+        .timeline li,
+        .tasks {
+          break-inside: avoid;
+        }
+        .tw {
+          overflow: visible;
+        }
+        table.options,
+        table.risks {
+          min-width: 0;
+        }
+        a {
+          text-decoration: none;
+        }
+        .refs a::after {
+          content: ' ' attr(href);
+          color: var(--muted);
+        }
+        .refs .u {
+          display: none;
+        }
+        .toc {
+          display: none;
+        }
+        .panels {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc">
+      <p class="kicker">
+        <span>aha.oox.sh</span><span class="sep">/</span> <span>Split DNS</span
+        ><span class="sep">/</span> <span>2026-09-20</span><span class="sep">/</span>
+        <span class="badge">Explainer</span>
+      </p>
+      <h1>Why one URL can show two different things</h1>
+      <p>
+        <code>https://aha.oox.sh</code> serves two different sets of documents under one URL. On the
+        Tailscale tailnet a request can read private documents. Off the tailnet the same URL returns
+        only documents that have been published. Nothing in the request decides which set it gets:
+        not the hostname, not the client IP, not a header. The decision comes from which path the
+        request physically takes, and from a credential that only one of those paths can attach.
+      </p>
+    </header>
+
+    <main>
+      <section aria-labelledby="paths">
+        <h2 id="paths">
+          <span><span class="n">01 —</span> Two paths, one name</span>
+        </h2>
+        <h3>On the tailnet</h3>
+        <p>
+          Tailscale split DNS sends queries for <code>aha.oox.sh</code> to a restricted nameserver:
+          a dnsmasq on the box that answers for that single name and nothing else. It returns the
+          box's tailnet address. The browser connects to <code>box:443</code>, where Portless
+          terminates TLS and hands the plain request to a gateway bound to loopback. The gateway
+          attaches a private-read credential and forwards the request to the Vercel origin under a
+          different hostname. The origin sees a credentialed request and may return private
+          documents.
+        </p>
+        <h3>Off the tailnet</h3>
+        <p>
+          Public DNS resolves <code>aha.oox.sh</code> to Vercel directly. There is no box, no
+          gateway and no credential. The origin sees an anonymous request and returns only published
+          documents.
+        </p>
+        <p>
+          Both paths end at the same deployment. The only difference the origin can see is whether
+          the private-read credential is present, and only the gateway holds it.
+        </p>
+
+        <figure>
+          <svg class="diagram" viewBox="0 0 320 520" role="img" aria-labelledby="paths-title">
+            <title id="paths-title">
+              Two request paths for aha.oox.sh. On the tailnet: Tailscale DNS, dnsmasq answering one
+              name, box port 443, Portless TLS, a read-only gateway that adds the read credential,
+              then the Vercel origin, returning private and published documents. Off the tailnet:
+              public DNS straight to Vercel, returning published documents only.
+            </title>
+            <rect x="60" y="8" width="200" height="36" />
+            <text x="160" y="30" text-anchor="middle">https://aha.oox.sh</text>
+            <line x1="160" y1="44" x2="160" y2="60" />
+            <line x1="78" y1="60" x2="242" y2="60" />
+            <line x1="78" y1="60" x2="78" y2="84" />
+            <polygon points="74,84 82,84 78,92" />
+            <line x1="242" y1="60" x2="242" y2="84" />
+            <polygon points="238,84 246,84 242,92" />
+
+            <rect x="8" y="92" width="140" height="32" />
+            <text x="78" y="112" text-anchor="middle">Tailscale DNS</text>
+            <line x1="78" y1="124" x2="78" y2="144" />
+            <polygon points="74,144 82,144 78,152" />
+
+            <rect x="8" y="152" width="140" height="32" />
+            <text x="78" y="172" text-anchor="middle">dnsmasq · 1 name</text>
+            <line x1="78" y1="184" x2="78" y2="204" />
+            <polygon points="74,204 82,204 78,212" />
+
+            <rect x="8" y="212" width="140" height="32" />
+            <text x="78" y="232" text-anchor="middle">box :443</text>
+            <line x1="78" y1="244" x2="78" y2="264" />
+            <polygon points="74,264 82,264 78,272" />
+
+            <rect x="8" y="272" width="140" height="32" />
+            <text x="78" y="292" text-anchor="middle">Portless TLS</text>
+            <line x1="78" y1="304" x2="78" y2="324" />
+            <polygon points="74,324 82,324 78,332" />
+
+            <g class="hi">
+              <rect x="8" y="332" width="140" height="48" />
+              <text x="78" y="352" text-anchor="middle">read-only gateway</text>
+              <text class="small" x="78" y="368" text-anchor="middle">+ read credential</text>
+            </g>
+            <line x1="78" y1="380" x2="78" y2="388" />
+            <polygon points="74,388 82,388 78,396" />
+
+            <rect x="8" y="396" width="140" height="32" />
+            <text class="small" x="78" y="416" text-anchor="middle">Vercel · origin</text>
+            <line x1="78" y1="428" x2="78" y2="448" />
+            <polygon points="74,448 82,448 78,456" />
+
+            <rect x="8" y="456" width="140" height="32" />
+            <text class="small" x="78" y="476" text-anchor="middle">private + published</text>
+            <text class="mute" x="78" y="510" text-anchor="middle">ON TAILNET</text>
+
+            <rect x="172" y="92" width="140" height="32" />
+            <text x="242" y="112" text-anchor="middle">public DNS</text>
+            <line x1="242" y1="124" x2="242" y2="388" />
+            <polygon points="238,388 246,388 242,396" />
+            <text class="small" x="250" y="262">anonymous</text>
+
+            <rect x="172" y="396" width="140" height="32" />
+            <text class="small" x="242" y="416" text-anchor="middle">Vercel · aha.oox.sh</text>
+            <line x1="242" y1="428" x2="242" y2="448" />
+            <polygon points="238,448 246,448 242,456" />
+
+            <rect x="172" y="456" width="140" height="32" />
+            <text class="small" x="242" y="476" text-anchor="middle">published only</text>
+            <text class="mute" x="242" y="510" text-anchor="middle">OFF TAILNET</text>
+          </svg>
+          <figcaption>
+            Figure 1. The same URL, two paths. Only the loopback gateway can add the private-read
+            credential; the public path reaches the same Vercel deployment with nothing attached.
+          </figcaption>
+        </figure>
+
+        <div class="callout note">
+          <span class="lbl">Note</span>
+          <p>
+            Trust comes from the credential at the origin, never from where the request appears to
+            come from. A hostname, a client IP or a header can be forged or misrouted. A secret that
+            only the gateway holds cannot.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="origin">
+        <h2 id="origin">
+          <span><span class="n">02 —</span> Why the origin is a different hostname</span>
+        </h2>
+        <p>
+          The gateway must not fetch from <code>aha.oox.sh</code>. On the box that name resolves
+          through the same dnsmasq back to the box itself. The gateway would connect to Portless,
+          Portless would hand the request to the gateway, and the loop would end in a timeout, never
+          in a document.
+        </p>
+        <p>
+          So the gateway forwards to a second hostname that points at the same Vercel deployment.
+          Split DNS does not touch that name; it resolves through public DNS like any other. The
+          document store is the same, only the name used to reach it differs.
+        </p>
+      </section>
+
+      <section aria-labelledby="readonly">
+        <h2 id="readonly">
+          <span><span class="n">03 —</span> Why the gateway is read-only</span>
+        </h2>
+        <p>
+          The gateway holds a credential that can read private documents, so its surface is kept as
+          small as possible.
+        </p>
+        <ul>
+          <li>
+            It rejects every path under <code>/api/*</code>. No write or admin endpoint is reachable
+            through the credential.
+          </li>
+          <li>
+            It strips the client's <code>Authorization</code> and <code>Cookie</code> headers before
+            forwarding. A client cannot smuggle its own token through the gateway, and a stolen
+            browser session is useless on this path.
+          </li>
+          <li>
+            It refuses redirects. A <code>3xx</code> from the origin becomes an error, not a second
+            request, so the credential is never sent wherever a <code>Location</code> header points.
+          </li>
+        </ul>
+        <p>
+          The credential therefore only ever travels to one origin, for one class of request, and
+          nothing a client sends can change either.
+        </p>
+      </section>
+
+      <section aria-labelledby="failclosed">
+        <h2 id="failclosed">
+          <span><span class="n">04 —</span> What fail closed means</span>
+        </h2>
+        <p>
+          Off the tailnet, every anonymous read checks the document's publication marker before
+          returning anything. Nothing is public by default; a document without the marker does not
+          exist as far as the public path is concerned.
+        </p>
+        <p>
+          If the storage lookup fails, whether by timeout, missing object or malformed record, the
+          response is <code>404</code>, identical to a document that was never there. An anonymous
+          reader cannot distinguish private, missing and broken.
+        </p>
+        <p>
+          Anonymous reads are not cached. Unpublishing takes effect on the next request, and no
+          intermediate layer can keep serving a document whose marker has changed.
+        </p>
+
+        <h3>Glossary</h3>
+        <dl class="glossary">
+          <dt>Split DNS</dt>
+          <dd>
+            A Tailscale setting that sends queries for a specific domain to a chosen nameserver
+            while everything else uses normal resolution.
+          </dd>
+          <dt>Restricted nameserver</dt>
+          <dd>
+            The nameserver split DNS points at. Here it is a dnsmasq on the box that answers for
+            <code>aha.oox.sh</code> only.
+          </dd>
+          <dt>Publication marker</dt>
+          <dd>
+            The stored flag that makes a document readable without a credential. Absent or
+            unreadable means <code>404</code>.
+          </dd>
+        </dl>
+      </section>
+    </main>
+
+    <footer class="doc">
+      <p class="colophon">
+        <span>aha.oox.sh</span>
+        <span>rev 2026-09-20</span>
+        <span>Explainer</span>
+      </p>
+    </footer>
+  </body>
+</html>

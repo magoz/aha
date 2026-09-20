@@ -125,7 +125,7 @@ See `docs/` for details. No host changes are made by this repository.
 
 ## Agent skill
 
-`SKILL.md` contains a short agent skill: write a self-contained static HTML file, upload privately with the CLI, share the `https://aha.oox.sh/<id>` URL, publish only on explicit owner instruction. `templates/plan.html` is the reference document for the house style (a complete fictional plan; copy its stylesheet, change the content). `fixtures/sample.html` is synthetic, non-sensitive sample content.
+`SKILL.md` contains a short agent skill: write a self-contained static HTML file, upload privately with the CLI, share the `https://aha.oox.sh/<id>` URL, publish only on explicit owner instruction. `templates/note.html` (short note) and `templates/plan.html` (long document) are the reference documents for the house style: copy the stylesheet, change the content. `fixtures/sample.html` is synthetic, non-sensitive sample content.
 
 ## Validation
 
