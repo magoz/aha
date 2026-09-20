@@ -39,7 +39,19 @@ pnpm plans read <id> [--output out.html]
 pnpm plans delete <id>   # only when unpublished, otherwise 409
 ```
 
-The installed binary is also available as `plans` after `pnpm build` (`dist/cli/plans.js`).
+`pnpm build` produces `dist/cli/plans.js`; it does not install a global command.
+For the dotfiles-managed setup, keep this checkout at `~/plans` and stow the
+`scripts` and `agents` packages from `~/.dotfiles/home`. The launcher at
+`~/.local/bin/plans` invokes the built CLI without changing your working directory:
+
+```sh
+plans upload ./page.html
+```
+
+The shared agent skill points to this repository's `SKILL.md`. Dotfiles owns only
+the launcher and skill entry, not a copy of the application. There is no npm
+publication or global npm install. After updating the checkout, run
+`pnpm install --frozen-lockfile && pnpm build` to refresh the CLI.
 
 Configuration:
 

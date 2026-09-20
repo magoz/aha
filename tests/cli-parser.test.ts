@@ -1,5 +1,5 @@
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { describe, expect, it } from '@effect/vitest'
@@ -167,6 +167,8 @@ describe('cli parser', () => {
 
   it.effect('requires a token and validates endpoints', () =>
     Effect.gen(function* () {
+      expect(homedir().startsWith(join(tmpdir(), 'plans-test-home-'))).toBe(true)
+
       const missing = yield* Effect.flip(parseCliArgs(['list'], {}))
 
       expect(Predicate.isTagged(missing, 'CliUsageError')).toBe(true)

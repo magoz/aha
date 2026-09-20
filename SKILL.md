@@ -10,31 +10,34 @@ private by default; publish only on explicit owner instruction.
 2. Upload privately and capture the URL:
 
    ```sh
-   pnpm plans upload ./page.html
-   # prints {"id":"<id>","url":"/<id>","etag":"..."}
+   plans upload ./page.html
+   # prints {"id":"<id>","url":"https://plans.oox.sh/<id>","etag":"..."}
    ```
 
-   The public URL is `https://plans.oox.sh/<id>`. It returns 404 until published.
+   The share URL is `https://plans.oox.sh/<id>`. Anonymous off-tailnet reads
+   return 404 until published. Private tailnet reads require the configured
+   gateway and split DNS; an upload does not configure that infrastructure.
 
 3. Share the URL. The owner publishes explicitly:
 
    ```sh
-   pnpm plans publish <id>
-   pnpm plans unpublish <id>
+   plans publish <id>
+   plans unpublish <id>
    ```
 
 ## Rules
 
 - Never publish or unpublish without an explicit owner instruction.
-- Never include secrets, credentials, or non-synthetic personal data in pages.
+- Keep secrets and credentials out of uploaded pages. Never commit real plans or
+  private documents to the source repository.
 - Updates replace content in place and preserve visibility:
 
   ```sh
-  pnpm plans update <id> ./page.html [--if-match <etag>]
+  plans update <id> ./page.html [--if-match <etag>]
   ```
 
-- Read back with `pnpm plans read <id> [--output out.html]`; list with
-  `pnpm plans list [--public] [--json]`.
+- Read back with `plans read <id> [--output out.html]`; list with
+  `plans list [--public] [--json]`.
 - Configure via `--endpoint`/`PLANS_ENDPOINT` (default
   `https://plans.oox.sh`; loopback `http:` only for development) and
   `--token`/`PLANS_OWNER_TOKEN`. On split-DNS tailnets, set the endpoint

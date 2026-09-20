@@ -19,12 +19,31 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const stack = yield* Alchemy.Stack
+    const { accountId } = yield* yield* Cloudflare.CloudflareEnvironment
+    const bucketName = bucketNameForStage(stack.stage)
 
     const bucket = yield* Cloudflare.R2.Bucket('plans-bucket', {
-      name: bucketNameForStage(stack.stage),
+      name: bucketName,
       forceDestroy: false
     }).pipe(RemovalPolicy.retain())
 
-    return { bucketName: bucket.bucketName }
+    const token = yield* Cloudflare.ApiToken.AccountApiToken('plans-r2-access', {
+      name: `${bucketName}-service`,
+      policies: [
+        {
+          effect: 'allow',
+          permissionGroups: [
+            'Workers R2 Storage Bucket Item Read',
+            'Workers R2 Storage Bucket Item Write'
+          ],
+          resources: {
+            [`com.cloudflare.edge.r2.bucket.${accountId}_default_${bucketName}`]: '*'
+          }
+        }
+      ]
+    })
+
+    // The token value remains in private Alchemy state, never in CLI output.
+    return { bucketName: bucket.bucketName, r2TokenId: token.tokenId }
   })
 )
