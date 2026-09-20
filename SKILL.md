@@ -39,11 +39,14 @@ stylesheet (append a few lines only for a component the reference lacks, in
 the same idiom).
 
 - `templates/note.html` — a short note (most ahas): explainer, concept
-  walkthrough, comparison, decision. Kicker line, `h1`, content. No metadata
-  block, no contents list.
+  walkthrough, comparison, decision. Kicker line, `h1`, content. No contents
+  list.
 - `templates/plan.html` — a long document (roughly six or more sections, or a
-  plan/RFC): metadata block with only the fields that apply, contents list,
-  numbered sections.
+  plan/RFC): the same header plus a numbered contents list.
+
+The header is minimal because the owner is the only reader: a kicker line of
+`Kind / date`, optionally a status badge, then the `h1`. No owner, reviewers,
+document id, or metadata block.
 
 The style is "mono technical": a beautifully typeset README, not a landing
 page and not an academic paper.
@@ -52,9 +55,11 @@ page and not an academic paper.
 `h1`, section headers, labels, metadata, tables, code, contents, and captions.
 System sans (`system-ui`) for body paragraphs at 16 px, line-height 1.5, prose
 capped at 40 rem inside a 44 rem page. Five sizes only: 28 / 20 / 16 / 13 /
-11 px. Section headers read `01 — TITLE` in small mono caps above a hairline,
-with an optional right-aligned mono aside (`5 weeks`, `3 open`). Spacing on a
-24 px unit. No serif anywhere, no web fonts.
+11 px. Section headings (`h2`) are 20 px mono, sentence case, unnumbered, with a
+hairline rule well above them (4 rem margin, 2.5 rem padding) and an optional
+right-aligned muted aside (`5 weeks`, `3 open`). Numbers appear only in the
+contents list. Keep the page airy: generous space between sections, never
+cramped. No serif anywhere, no web fonts.
 
 **Color.** Light: paper `#faf8f4`, ink `#1b1a18`, muted `#6b6862`, rule
 `#d8d4cc`, hairline `#e8e5de`. Dark (`prefers-color-scheme`): paper `#1d1d1c`,

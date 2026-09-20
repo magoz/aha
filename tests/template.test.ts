@@ -32,14 +32,20 @@ describe.each(templates)('templates/$name.html', ({ html }) => {
 })
 
 describe('template kinds', () => {
-  it('keeps the short note free of metadata block and contents', () => {
+  it('keeps the short note free of a contents list', () => {
     const note = templates[0]?.html ?? ''
-    expect(note).not.toMatch(/class="toc"|class="meta"/)
+    expect(note).not.toMatch(/class="toc"/)
   })
 
-  it('gives the long document a metadata block and contents', () => {
+  it('gives the long document a numbered contents list and no metadata block', () => {
     const plan = templates[1]?.html ?? ''
-    expect(plan).toMatch(/class="meta"/)
     expect(plan).toMatch(/class="toc"/)
+    expect(plan).not.toMatch(/class="meta"/)
+  })
+
+  it('leaves section headings unnumbered', () => {
+    for (const { html } of templates) {
+      expect(html).not.toMatch(/<h2[^>]*>\s*<span class="n">/)
+    }
   })
 })

@@ -89,36 +89,33 @@
         line-height: 1.25;
         font-weight: 600;
         letter-spacing: -0.01em;
-        margin: 0.75rem 0 var(--unit);
+        margin: 0.75rem 0 2rem;
         text-wrap: balance;
       }
       h2 {
-        font-size: var(--t-sm);
+        font-size: var(--t-lg);
         font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin: 3rem 0 var(--unit);
-        padding-top: 0.75rem;
+        letter-spacing: -0.01em;
+        line-height: 1.3;
+        margin: 4rem 0 1.25rem;
+        padding-top: 2.5rem;
         border-top: 1px solid var(--rule);
         display: flex;
         justify-content: space-between;
         align-items: baseline;
         gap: 1rem;
       }
-      h2 .n {
-        color: var(--muted);
-        font-weight: 500;
-      }
       h2 .aside {
         font-weight: 400;
+        font-size: var(--t-sm);
         letter-spacing: 0.04em;
         color: var(--muted);
-        text-transform: none;
+        white-space: nowrap;
       }
       h3 {
         font-size: var(--t-md);
         font-weight: 600;
-        margin: var(--unit) 0 0.5rem;
+        margin: 2rem 0 0.75rem;
         line-height: 1.5;
       }
       p {
@@ -283,11 +280,6 @@
         margin: 0;
         line-height: 1.75;
         break-inside: avoid;
-      }
-      .toc li .n {
-        color: var(--muted);
-        display: inline-block;
-        width: 2.25rem;
       }
       .toc a {
         text-decoration: none;
@@ -764,11 +756,7 @@
   </head>
   <body>
     <header class="doc">
-      <p class="kicker">
-        <span>aha.oox.sh</span><span class="sep">/</span> <span>Split DNS</span
-        ><span class="sep">/</span> <span>2026-09-20</span><span class="sep">/</span>
-        <span class="badge">Explainer</span>
-      </p>
+      <p class="kicker"><span>Explainer</span><span class="sep">/</span> <span>2026-09-20</span></p>
       <h1>Why one URL can show two different things</h1>
       <p>
         <code>https://aha.oox.sh</code> serves two different sets of documents under one URL. On the
@@ -782,7 +770,7 @@
     <main>
       <section aria-labelledby="paths">
         <h2 id="paths">
-          <span><span class="n">01 —</span> Two paths, one name</span>
+          <span>Two paths, one name</span>
         </h2>
         <h3>On the tailnet</h3>
         <p>
@@ -892,7 +880,7 @@
 
       <section aria-labelledby="origin">
         <h2 id="origin">
-          <span><span class="n">02 —</span> Why the origin is a different hostname</span>
+          <span>Why the origin is a different hostname</span>
         </h2>
         <p>
           The gateway must not fetch from <code>aha.oox.sh</code>. On the box that name resolves
@@ -909,7 +897,7 @@
 
       <section aria-labelledby="readonly">
         <h2 id="readonly">
-          <span><span class="n">03 —</span> Why the gateway is read-only</span>
+          <span>Why the gateway is read-only</span>
         </h2>
         <p>
           The gateway holds a credential that can read private documents, so its surface is kept as
@@ -938,7 +926,7 @@
 
       <section aria-labelledby="failclosed">
         <h2 id="failclosed">
-          <span><span class="n">04 —</span> What fail closed means</span>
+          <span>What fail closed means</span>
         </h2>
         <p>
           Off the tailnet, every anonymous read checks the document's publication marker before

@@ -71,7 +71,6 @@
       h3,
       .mono,
       table,
-      dl.meta,
       .toc,
       .badge,
       kbd,
@@ -89,36 +88,33 @@
         line-height: 1.25;
         font-weight: 600;
         letter-spacing: -0.01em;
-        margin: 0.75rem 0 var(--unit);
+        margin: 0.75rem 0 2rem;
         text-wrap: balance;
       }
       h2 {
-        font-size: var(--t-sm);
+        font-size: var(--t-lg);
         font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin: 3rem 0 var(--unit);
-        padding-top: 0.75rem;
+        letter-spacing: -0.01em;
+        line-height: 1.3;
+        margin: 4rem 0 1.25rem;
+        padding-top: 2.5rem;
         border-top: 1px solid var(--rule);
         display: flex;
         justify-content: space-between;
         align-items: baseline;
         gap: 1rem;
       }
-      h2 .n {
-        color: var(--muted);
-        font-weight: 500;
-      }
       h2 .aside {
         font-weight: 400;
+        font-size: var(--t-sm);
         letter-spacing: 0.04em;
         color: var(--muted);
-        text-transform: none;
+        white-space: nowrap;
       }
       h3 {
         font-size: var(--t-md);
         font-weight: 600;
-        margin: var(--unit) 0 0.5rem;
+        margin: 2rem 0 0.75rem;
         line-height: 1.5;
       }
       p {
@@ -212,33 +208,6 @@
       .kicker .sep {
         color: var(--rule);
       }
-      dl.meta {
-        display: grid;
-        grid-template-columns: 6rem 1fr;
-        gap: 0.25rem 1rem;
-        margin: 0 0 var(--unit);
-        padding: 0.75rem 1rem;
-        border: 1px solid var(--rule);
-        font-size: var(--t-sm);
-        line-height: 1.6;
-      }
-      dl.meta > div {
-        display: contents;
-      }
-      dl.meta dt {
-        color: var(--muted);
-        text-transform: lowercase;
-        margin: 0;
-      }
-      dl.meta dd {
-        margin: 0;
-      }
-      @media (min-width: 40rem) {
-        dl.meta {
-          grid-template-columns: 6rem 1fr 6rem 1fr;
-        }
-      }
-
       /* ---------- badges ---------- */
       .badge {
         display: inline-block;
@@ -284,10 +253,9 @@
         line-height: 1.75;
         break-inside: avoid;
       }
-      .toc li .n {
+      .toc .n {
         color: var(--muted);
-        display: inline-block;
-        width: 2.25rem;
+        margin-right: 0.75rem;
       }
       .toc a {
         text-decoration: none;
@@ -765,37 +733,11 @@
   <body>
     <header class="doc">
       <p class="kicker">
-        <span>PLAT-0142</span><span class="sep">/</span> <span>Engineering plan</span
-        ><span class="sep">/</span> <span>Platform team</span><span class="sep">/</span>
+        <span>Plan</span><span class="sep">/</span> <span>2026-09-20</span
+        ><span class="sep">/</span>
         <span class="badge">Draft</span>
       </p>
       <h1>Notification delivery: from cron polling to an event pipeline</h1>
-      <dl class="meta">
-        <div>
-          <dt>Status</dt>
-          <dd>Draft for review</dd>
-        </div>
-        <div>
-          <dt>Owner</dt>
-          <dd>Platform team</dd>
-        </div>
-        <div>
-          <dt>Date</dt>
-          <dd>2026-09-20</dd>
-        </div>
-        <div>
-          <dt>Reviewers</dt>
-          <dd>Product, SRE</dd>
-        </div>
-        <div>
-          <dt>Target</dt>
-          <dd>Q4 2026</dd>
-        </div>
-        <div>
-          <dt>Document</dt>
-          <dd>PLAT-0142</dd>
-        </div>
-      </dl>
 
       <nav class="toc" aria-label="Contents">
         <span class="lbl">Contents</span>
@@ -821,7 +763,7 @@
     <main>
       <section aria-labelledby="summary">
         <h2 id="summary">
-          <span><span class="n">01 —</span> Summary</span>
+          <span>Summary</span>
         </h2>
         <p>
           Notifications are currently discovered by a cron job that scans the
@@ -835,7 +777,7 @@
 
       <section aria-labelledby="problem">
         <h2 id="problem">
-          <span><span class="n">02 —</span> Problem</span>
+          <span>Problem</span>
         </h2>
         <ul>
           <li>Poll interval 60 s: median delivery 38 s, p95 74 s, p99 121 s.</li>
@@ -862,7 +804,7 @@
 
       <section aria-labelledby="goals">
         <h2 id="goals">
-          <span><span class="n">03 —</span> Goals and non-goals</span>
+          <span>Goals and non-goals</span>
         </h2>
         <h3>Goals</h3>
         <ul>
@@ -881,7 +823,7 @@
 
       <section aria-labelledby="architecture">
         <h2 id="architecture">
-          <span><span class="n">04 —</span> Architecture</span>
+          <span>Architecture</span>
         </h2>
         <figure>
           <div class="panels">
@@ -998,7 +940,7 @@
 
       <section aria-labelledby="options">
         <h2 id="options">
-          <span><span class="n">05 —</span> Options</span>
+          <span>Options</span>
         </h2>
         <div class="tw">
           <table class="options">
@@ -1053,7 +995,7 @@
 
       <section aria-labelledby="numbers">
         <h2 id="numbers">
-          <span><span class="n">06 —</span> Key numbers</span>
+          <span>Key numbers</span>
         </h2>
         <div class="tw">
           <table class="stats">
@@ -1096,9 +1038,7 @@
       </section>
 
       <section aria-labelledby="phases">
-        <h2 id="phases">
-          <span><span class="n">07 —</span> Phases</span> <span class="aside">5 weeks</span>
-        </h2>
+        <h2 id="phases"><span>Phases</span> <span class="aside">5 weeks</span></h2>
         <ol class="timeline">
           <li>
             <span class="wk">W1</span>
@@ -1144,9 +1084,7 @@
       </section>
 
       <section aria-labelledby="tasks">
-        <h2 id="tasks">
-          <span><span class="n">08 —</span> Tasks</span> <span class="aside">2 of 8 done</span>
-        </h2>
+        <h2 id="tasks"><span>Tasks</span> <span class="aside">2 of 8 done</span></h2>
         <ul class="tasks">
           <li class="done">
             <span class="box">[x]</span><span class="txt">Baseline dashboards</span
@@ -1187,7 +1125,7 @@
 
       <section aria-labelledby="code">
         <h2 id="code">
-          <span><span class="n">09 —</span> Outbox write and idempotency</span>
+          <span>Outbox write and idempotency</span>
         </h2>
         <h3>Outbox insert in the domain transaction</h3>
         <p>
@@ -1236,7 +1174,7 @@ CREATE UNIQUE INDEX notification_deliveries_idempotency_key
 
       <section aria-labelledby="risks">
         <h2 id="risks">
-          <span><span class="n">10 —</span> Risks</span>
+          <span>Risks</span>
         </h2>
         <div class="tw">
           <table class="risks">
@@ -1279,9 +1217,7 @@ CREATE UNIQUE INDEX notification_deliveries_idempotency_key
       </section>
 
       <section aria-labelledby="questions">
-        <h2 id="questions">
-          <span><span class="n">11 —</span> Open questions</span> <span class="aside">3 open</span>
-        </h2>
+        <h2 id="questions"><span>Open questions</span> <span class="aside">3 open</span></h2>
         <ul class="questions">
           <li>
             <span class="badge ok">Open</span
@@ -1304,7 +1240,7 @@ CREATE UNIQUE INDEX notification_deliveries_idempotency_key
 
       <section aria-labelledby="rollback">
         <h2 id="rollback">
-          <span><span class="n">12 —</span> Rollback</span>
+          <span>Rollback</span>
         </h2>
         <p>
           Flip <code>outbox_publish</code> off; workers drain the queue. In the flags console,
@@ -1318,7 +1254,7 @@ CREATE UNIQUE INDEX notification_deliveries_idempotency_key
 
       <section aria-labelledby="glossary">
         <h2 id="glossary">
-          <span><span class="n">13 —</span> Glossary</span>
+          <span>Glossary</span>
         </h2>
         <dl class="glossary">
           <dt>Outbox</dt>
@@ -1332,7 +1268,7 @@ CREATE UNIQUE INDEX notification_deliveries_idempotency_key
 
       <section aria-labelledby="references">
         <h2 id="references">
-          <span><span class="n">14 —</span> References</span>
+          <span>References</span>
         </h2>
         <ul class="refs">
           <li>
