@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Notification delivery: from cron polling to an event pipeline · PLAT-0142</title>
+    <style>
+      :root {
+        --paper: #f6f1e8;
+        --ink: #2a2420;
+        --ink-2: #625a50;
+        --rule: #d6cdbe;
+        --rule-soft: #e6dfd2;
+        --accent: #3f6b4a;
+        --warn: #b3261e;
+
+        --serif:
+          'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia,
+          'Times New Roman', serif;
+        --sans: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Roboto, Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+        /* type scale: 5 steps */
+        --s-1: 0.8125rem; /* 14.2px: meta, captions, margin notes, badges */
+        --s0: 1rem; /* 17.5px: body */
+        --s1: 1.2rem; /* h3 */
+        --s2: 1.5rem; /* h2 */
+        --s3: 2.25rem; /* h1 */
+
+        /* rhythm: 1 unit = 0.6rem (10.5px); body line = 1.55 x 17.5 ≈ 27px */
+        --u: 0.6rem;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #1c1916;
+          --ink: #e6ddd0;
+          --ink-2: #a69b8c;
+          --rule: #3d362e;
+          --rule-soft: #2c2723;
+          --accent: #8fbf98;
+          --warn: #e0705f;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        font-size: 17px;
+        background: var(--paper);
+        color: var(--ink);
+        -webkit-text-size-adjust: 100%;
+      }
+      @media (min-width: 600px) {
+        html {
+          font-size: 17.5px;
+        }
+      }
+
+      body {
+        margin: 0;
+        padding: calc(var(--u) * 5) 1.25rem calc(var(--u) * 10);
+        font-family: var(--sans);
+        font-size: var(--s0);
+        line-height: 1.55;
+        font-feature-settings: 'kern', 'liga';
+      }
+
+      .page {
+        max-width: 38rem;
+        margin: 0 auto;
+      }
+
+      /* --- headings --- */
+      h1,
+      h2,
+      h3 {
+        font-family: var(--serif);
+        font-weight: 500;
+        line-height: 1.2;
+        letter-spacing: -0.005em;
+        margin: 0;
+      }
+      h1 {
+        font-size: var(--s3);
+        margin: 0 0 calc(var(--u) * 2.5);
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: var(--s2);
+        margin: calc(var(--u) * 6) 0 calc(var(--u) * 1.5);
+        padding-top: calc(var(--u) * 1.5);
+        border-top: 1px solid var(--rule);
+      }
+      h3 {
+        font-size: var(--s1);
+        margin: calc(var(--u) * 3.5) 0 calc(var(--u) * 1);
+      }
+      h2 .num,
+      h3 .num {
+        color: var(--ink-2);
+        font-variant-numeric: tabular-nums;
+        margin-right: 0.5em;
+      }
+
+      p,
+      ul,
+      ol,
+      dl,
+      figure,
+      blockquote,
+      pre,
+      table {
+        margin: 0 0 calc(var(--u) * 2);
+      }
+      ul,
+      ol {
+        padding-left: 1.4rem;
+      }
+      li {
+        margin-bottom: calc(var(--u) * 0.6);
+      }
+      li > ul,
+      li > ol {
+        margin-top: calc(var(--u) * 0.6);
+        margin-bottom: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-color: var(--rule);
+        text-underline-offset: 0.16em;
+      }
+      a:hover {
+        text-decoration-color: currentColor;
+      }
+
+      strong {
+        font-weight: 600;
+      }
+      small,
+      .small {
+        font-size: var(--s-1);
+      }
+      sup {
+        line-height: 0;
+        font-size: 0.72em;
+      }
+      sup a {
+        text-decoration: none;
+        color: var(--accent);
+      }
+
+      hr {
+        border: 0;
+        border-top: 1px solid var(--rule);
+        margin: calc(var(--u) * 4) 0;
+      }
+
+      /* --- code --- */
+      code,
+      kbd,
+      pre {
+        font-family: var(--mono);
+        font-size: 0.88em;
+      }
+      code {
+        padding: 0 0.1em;
+      }
+      kbd {
+        font-size: 0.8em;
+        padding: 0.05em 0.4em 0.1em;
+        border: 1px solid var(--rule);
+        border-bottom-width: 2px;
+        border-radius: 3px;
+        color: var(--ink-2);
+        white-space: nowrap;
+      }
+      pre {
+        font-size: var(--s-1);
+        line-height: 1.5;
+        padding: calc(var(--u) * 1.5) calc(var(--u) * 2);
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+        overflow-x: auto;
+        tab-size: 2;
+      }
+      pre code {
+        font-size: inherit;
+        padding: 0;
+      }
+      pre .add {
+        font-weight: 700;
+      }
+      pre .cmt {
+        color: var(--ink-2);
+      }
+
+      /* --- metadata --- */
+      .meta {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        column-gap: 1.2rem;
+        row-gap: 0.15rem;
+        font-size: var(--s-1);
+        color: var(--ink-2);
+        margin: 0 0 calc(var(--u) * 4);
+        padding: calc(var(--u) * 1.5) 0;
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+      }
+      .meta dt {
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .meta dd {
+        margin: 0;
+        color: var(--ink);
+      }
+      @media (min-width: 600px) {
+        .meta {
+          grid-template-columns: max-content 1fr max-content 1fr;
+          column-gap: 1.5rem;
+        }
+      }
+
+      /* --- badges: meaning only --- */
+      .badge {
+        display: inline-block;
+        font-family: var(--sans);
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        line-height: 1.3;
+        padding: 0.1em 0.45em;
+        border: 1px solid currentColor;
+        border-radius: 2px;
+        color: var(--ink-2);
+        vertical-align: 0.12em;
+        white-space: nowrap;
+      }
+      .badge.accent {
+        color: var(--accent);
+      }
+      .badge.warn {
+        color: var(--warn);
+      }
+
+      /* --- table of contents --- */
+      .toc {
+        font-size: var(--s-1);
+        margin: 0 0 calc(var(--u) * 4);
+      }
+      .toc h2 {
+        font-family: var(--sans);
+        font-size: var(--s-1);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        border: 0;
+        margin: 0 0 calc(var(--u) * 0.8);
+        padding: 0;
+      }
+      .toc ol {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        columns: 2;
+        column-gap: 2rem;
+      }
+      .toc li {
+        margin: 0 0 0.2rem;
+        break-inside: avoid;
+      }
+      .toc a {
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
+      .toc .num {
+        display: inline-block;
+        width: 1.6em;
+        color: var(--ink-2);
+        font-variant-numeric: tabular-nums;
+      }
+      @media (max-width: 480px) {
+        .toc ol {
+          columns: 1;
+        }
+      }
+
+      /* --- callouts: left-ruled paragraphs --- */
+      .callout {
+        margin: calc(var(--u) * 2.5) 0;
+        padding: 0.1rem 0 0.1rem 1.1rem;
+        border-left: 2px solid var(--ink-2);
+      }
+      .callout p {
+        margin: 0 0 calc(var(--u) * 1);
+      }
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+      .callout .label {
+        display: block;
+        font-size: var(--s-1);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        margin-bottom: 0.15rem;
+      }
+      .callout.decision {
+        border-left-color: var(--accent);
+      }
+      .callout.decision .label {
+        color: var(--accent);
+      }
+      .callout.warning {
+        border-left-color: var(--warn);
+      }
+      .callout.warning .label {
+        color: var(--warn);
+      }
+      .callout.decision {
+        font-family: var(--serif);
+        font-size: 1.08em;
+      }
+      .callout.decision .label {
+        font-family: var(--sans);
+        font-size: var(--s-1);
+      }
+
+      /* --- tables --- */
+      .tw {
+        overflow-x: auto;
+        margin: 0 0 calc(var(--u) * 2);
+        -webkit-overflow-scrolling: touch;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: var(--s-1);
+        line-height: 1.4;
+        margin: 0;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.5rem 0.7rem 0.5rem 0;
+        border-bottom: 1px solid var(--rule-soft);
+      }
+      th:last-child,
+      td:last-child {
+        padding-right: 0;
+      }
+      thead th {
+        font-weight: 600;
+        color: var(--ink-2);
+        letter-spacing: 0.02em;
+        border-bottom: 1px solid var(--ink-2);
+        white-space: nowrap;
+      }
+      tbody th {
+        font-weight: 600;
+      }
+      td.n,
+      th.n {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      table.options {
+        min-width: 640px;
+      }
+      table.risks {
+        min-width: 560px;
+      }
+      table.numbers th,
+      table.numbers td {
+        padding-top: 0.45rem;
+        padding-bottom: 0.45rem;
+      }
+      table.numbers td.target {
+        font-family: var(--serif);
+        font-size: 1.15rem;
+        font-weight: 500;
+        color: var(--ink);
+      }
+      .arrow {
+        color: var(--ink-2);
+      }
+
+      /* --- figures / diagrams --- */
+      figure {
+        margin: calc(var(--u) * 2.5) 0 calc(var(--u) * 3);
+      }
+      figcaption {
+        font-size: var(--s-1);
+        color: var(--ink-2);
+        margin-top: 0.5rem;
+      }
+      figcaption strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .diagram {
+        display: block;
+        width: 100%;
+        height: auto;
+        color: var(--ink);
+        overflow: visible;
+      }
+      .diagram rect {
+        fill: var(--paper);
+        stroke: currentColor;
+        stroke-width: 1;
+      }
+      .diagram rect.soft {
+        stroke: var(--ink-2);
+        stroke-dasharray: 3 3;
+      }
+      .diagram path,
+      .diagram line {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1;
+      }
+      .diagram path.head {
+        fill: currentColor;
+        stroke: none;
+      }
+      .diagram path.dash {
+        stroke-dasharray: 3 3;
+        stroke: var(--ink-2);
+      }
+      .diagram text {
+        font-family: var(--sans);
+        font-size: 12.5px;
+        fill: currentColor;
+        text-anchor: middle;
+        dominant-baseline: middle;
+      }
+      .diagram text.muted {
+        fill: var(--ink-2);
+        font-size: 11px;
+      }
+
+      /* --- checklist --- */
+      ul.tasks {
+        list-style: none;
+        padding: 0;
+      }
+      ul.tasks li {
+        display: grid;
+        grid-template-columns: 1.1rem 1fr max-content;
+        column-gap: 0.7rem;
+        align-items: baseline;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--rule-soft);
+        margin: 0;
+      }
+      ul.tasks .box {
+        display: inline-block;
+        width: 0.9rem;
+        height: 0.9rem;
+        border: 1px solid var(--ink-2);
+        border-radius: 2px;
+        position: relative;
+        top: 0.1rem;
+        font-size: 0.7rem;
+        line-height: 0.8rem;
+        text-align: center;
+        color: var(--ink);
+      }
+      ul.tasks li.done .box::after {
+        content: '\2713';
+      }
+      ul.tasks li.done .text {
+        color: var(--ink-2);
+      }
+
+      /* --- phases --- */
+      .exit {
+        font-size: var(--s-1);
+        color: var(--ink-2);
+        padding-left: 1.1rem;
+        border-left: 1px solid var(--rule);
+      }
+      .exit .label {
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-right: 0.4em;
+      }
+
+      /* --- quote --- */
+      blockquote {
+        font-family: var(--serif);
+        font-size: 1.15rem;
+        line-height: 1.4;
+        margin: calc(var(--u) * 3) 0;
+        padding: 0 0 0 1.1rem;
+        border-left: 1px solid var(--rule);
+      }
+      blockquote p {
+        margin: 0 0 0.5rem;
+      }
+      blockquote footer {
+        font-family: var(--sans);
+        font-size: var(--s-1);
+        color: var(--ink-2);
+      }
+      blockquote cite {
+        font-style: normal;
+      }
+
+      /* --- glossary --- */
+      dl.glossary dt {
+        font-weight: 600;
+        margin-top: calc(var(--u) * 1);
+      }
+      dl.glossary dd {
+        margin: 0 0 calc(var(--u) * 1) 0;
+      }
+
+      /* --- open questions --- */
+      ol.questions li {
+        margin-bottom: calc(var(--u) * 1);
+      }
+      .owner {
+        color: var(--ink-2);
+        font-size: var(--s-1);
+        white-space: nowrap;
+      }
+
+      /* --- footnotes / references --- */
+      .footnotes {
+        font-size: var(--s-1);
+        color: var(--ink-2);
+        margin-top: calc(var(--u) * 5);
+        padding-top: calc(var(--u) * 1.5);
+        border-top: 1px solid var(--rule);
+      }
+      .footnotes ol {
+        padding-left: 1.4rem;
+        margin: 0;
+      }
+      .footnotes a.back {
+        text-decoration: none;
+        margin-left: 0.3em;
+      }
+      ul.refs {
+        list-style: none;
+        padding: 0;
+      }
+      ul.refs li {
+        margin-bottom: 0.35rem;
+      }
+      ul.refs .url {
+        display: block;
+        font-size: var(--s-1);
+        color: var(--ink-2);
+        word-break: break-all;
+      }
+
+      .colophon {
+        font-size: var(--s-1);
+        color: var(--ink-2);
+        margin-top: calc(var(--u) * 6);
+      }
+
+      /* --- print --- */
+      @media print {
+        :root {
+          --paper: #fff;
+          --ink: #000;
+          --ink-2: #444;
+          --rule: #999;
+          --rule-soft: #ccc;
+          --accent: #2f5238;
+          --warn: #8f1d16;
+        }
+        html {
+          font-size: 11pt;
+        }
+        body {
+          padding: 0;
+        }
+        .page {
+          max-width: none;
+          margin: 0;
+        }
+        a {
+          text-decoration: none;
+        }
+        h2,
+        h3 {
+          break-after: avoid;
+        }
+        figure,
+        table,
+        pre,
+        blockquote,
+        .callout,
+        ul.tasks {
+          break-inside: avoid;
+        }
+        .tw {
+          overflow: visible;
+        }
+        table.options,
+        table.risks {
+          min-width: 0;
+        }
+        pre {
+          white-space: pre-wrap;
+        }
+        .toc {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <p class="small" style="color: var(--ink-2); margin-bottom: 0.4rem">
+          PLAT-0142 · Platform team · <span class="badge">Draft</span>
+        </p>
+        <h1>Notification delivery: from cron polling to an event pipeline</h1>
+        <dl class="meta">
+          <dt>Status</dt>
+          <dd>Draft for review</dd>
+          <dt>Owner</dt>
+          <dd>Platform team</dd>
+          <dt>Date</dt>
+          <dd><time datetime="2026-09-20">2026-09-20</time></dd>
+          <dt>Reviewers</dt>
+          <dd>Product, SRE</dd>
+          <dt>Target</dt>
+          <dd>Q4 2026</dd>
+          <dt>Document</dt>
+          <dd>PLAT-0142</dd>
+        </dl>
+      </header>
+
+      <nav class="toc" aria-labelledby="toc-h">
+        <h2 id="toc-h">Contents</h2>
+        <ol>
+          <li><span class="num">1</span><a href="#summary">Summary</a></li>
+          <li><span class="num">2</span><a href="#problem">Problem</a></li>
+          <li><span class="num">3</span><a href="#goals">Goals and non-goals</a></li>
+          <li><span class="num">4</span><a href="#architecture">Architecture</a></li>
+          <li><span class="num">5</span><a href="#options">Options and decision</a></li>
+          <li><span class="num">6</span><a href="#numbers">Key numbers</a></li>
+          <li><span class="num">7</span><a href="#phases">Phases</a></li>
+          <li><span class="num">8</span><a href="#tasks">Work items</a></li>
+          <li>
+            <span class="num">9</span><a href="#implementation">Outbox write and idempotency</a>
+          </li>
+          <li><span class="num">10</span><a href="#risks">Risks</a></li>
+          <li><span class="num">11</span><a href="#questions">Open questions</a></li>
+          <li><span class="num">12</span><a href="#rollback">Rollback</a></li>
+          <li><span class="num">13</span><a href="#glossary">Glossary</a></li>
+          <li><span class="num">14</span><a href="#references">References</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <section id="summary">
+          <h2><span class="num">1</span>Summary</h2>
+          <p>
+            Notifications are currently discovered by a cron job that scans the
+            <code>events</code> table every 60 s; p95 delivery is 74 s and the scan accounts for 18%
+            of database CPU at peak. This plan publishes domain events through a transactional
+            outbox and a queue so channel workers deliver within seconds. Two implementation phases
+            plus a staged cutover, about 5 weeks, with no user-facing API change.
+          </p>
+        </section>
+
+        <section id="problem">
+          <h2><span class="num">2</span>Problem</h2>
+          <ul>
+            <li>Poll interval 60 s: median delivery 38 s, p95 74 s, p99 121 s.</li>
+            <li>
+              The scan query costs 18% of primary DB CPU at peak (measured 2026-09-08 to 09-14).<sup
+                ><a href="#fn1" id="fnref1">1</a></sup
+              >
+            </li>
+            <li>
+              Retries re-send 0.4% of notifications because the poller has no idempotency key.<sup
+                ><a href="#fn2" id="fnref2">2</a></sup
+              >
+            </li>
+            <li>No per-channel backpressure: a Slack outage delays email too.</li>
+          </ul>
+
+          <blockquote>
+            <p>
+              “The poller was healthy the whole time. It just had no way to know the queue behind it
+              was five minutes deep.”
+            </p>
+            <footer>— <cite>INC-2031 review, 2026-08-12</cite></footer>
+          </blockquote>
+        </section>
+
+        <section id="goals">
+          <h2><span class="num">3</span>Goals and non-goals</h2>
+          <h3>Goals</h3>
+          <ul>
+            <li>p95 delivery under 5 s.</li>
+            <li>Remove the table scan.</li>
+            <li>Exactly-once delivery per channel.</li>
+            <li>Per-channel rate limits and isolation.</li>
+          </ul>
+          <h3>Non-goals</h3>
+          <ul>
+            <li>New channels.</li>
+            <li>Template redesign.</li>
+            <li>Changes to the preference model.</li>
+          </ul>
+        </section>
+
+        <section id="architecture">
+          <h2><span class="num">4</span>Architecture</h2>
+
+          <figure>
+            <svg class="diagram" viewBox="0 0 720 200" role="img" aria-labelledby="fig1-title">
+              <title id="fig1-title">
+                Current pipeline: API writes to the events table, a cron poller scans it every 60
+                seconds, a sender fans out to Email, Push and Slack.
+              </title>
+              <!-- boxes -->
+              <rect x="16" y="84" width="80" height="44" rx="3" />
+              <text x="56" y="106">API</text>
+              <rect x="128" y="84" width="120" height="44" rx="3" />
+              <text x="188" y="106">events table</text>
+              <rect x="280" y="84" width="130" height="44" rx="3" />
+              <text x="345" y="99">cron poller</text>
+              <text x="345" y="116" class="muted">every 60 s</text>
+              <rect x="442" y="84" width="90" height="44" rx="3" />
+              <text x="487" y="106">sender</text>
+              <rect x="600" y="24" width="100" height="40" rx="3" />
+              <text x="650" y="44">Email</text>
+              <rect x="600" y="84" width="100" height="40" rx="3" />
+              <text x="650" y="104">Push</text>
+              <rect x="600" y="144" width="100" height="40" rx="3" />
+              <text x="650" y="164">Slack</text>
+              <!-- arrows -->
+              <path d="M96 106 H121" />
+              <path class="head" d="M121 102 L128 106 L121 110 Z" />
+              <path d="M248 106 H273" />
+              <path class="head" d="M273 102 L280 106 L273 110 Z" />
+              <path d="M410 106 H435" />
+              <path class="head" d="M435 102 L442 106 L435 110 Z" />
+              <path d="M532 106 H566 V44 H593" />
+              <path class="head" d="M593 40 L600 44 L593 48 Z" />
+              <path d="M566 106 H593" />
+              <path class="head" d="M593 102 L600 106 L593 110 Z" />
+              <path d="M566 106 V164 H593" />
+              <path class="head" d="M593 160 L600 164 L593 168 Z" />
+              <text x="345" y="150" class="muted">full scan of events, 18% DB CPU at peak</text>
+              <text x="345" y="166" class="muted">
+                no idempotency key, no per-channel isolation
+              </text>
+            </svg>
+            <figcaption>
+              <strong>Figure 1. Current.</strong> One poller and one sender sit between the table
+              and every provider. A slow provider blocks the others.
+            </figcaption>
+          </figure>
+
+          <figure>
+            <svg class="diagram" viewBox="0 0 760 292" role="img" aria-labelledby="fig2-title">
+              <title id="fig2-title">
+                Proposed pipeline: API writes to an outbox in the same transaction, a relay moves
+                rows to the queue, per-channel workers deliver to providers, with a dead-letter
+                queue off the workers and a metrics tap on the relay.
+              </title>
+              <!-- main row -->
+              <rect x="16" y="120" width="72" height="52" rx="3" />
+              <text x="52" y="146">API</text>
+              <rect x="120" y="120" width="120" height="52" rx="3" />
+              <text x="180" y="139">outbox</text>
+              <text x="180" y="156" class="muted">same transaction</text>
+              <rect x="272" y="120" width="84" height="52" rx="3" />
+              <text x="314" y="146">relay</text>
+              <rect x="388" y="120" width="84" height="52" rx="3" />
+              <text x="430" y="146">queue</text>
+              <rect x="504" y="120" width="124" height="52" rx="3" />
+              <text x="566" y="139">channel workers</text>
+              <text x="566" y="156" class="muted">one pool per channel</text>
+              <!-- providers -->
+              <text x="702" y="26" class="muted">providers</text>
+              <rect x="660" y="44" width="84" height="44" rx="3" />
+              <text x="702" y="66">Email</text>
+              <rect x="660" y="120" width="84" height="44" rx="3" />
+              <text x="702" y="142">Push</text>
+              <rect x="660" y="196" width="84" height="44" rx="3" />
+              <text x="702" y="218">Slack</text>
+              <!-- metrics tap -->
+              <rect class="soft" x="272" y="16" width="84" height="44" rx="3" />
+              <text x="314" y="38">metrics tap</text>
+              <path class="dash" d="M314 120 V67" />
+              <path class="head" d="M310 67 L314 60 L318 67 Z" />
+              <!-- dead-letter queue -->
+              <rect x="504" y="232" width="124" height="44" rx="3" />
+              <text x="566" y="248">dead-letter queue</text>
+              <text x="566" y="264" class="muted">after 5 attempts</text>
+              <path d="M566 172 V225" />
+              <path class="head" d="M562 225 L566 232 L570 225 Z" />
+              <!-- arrows -->
+              <path d="M88 146 H113" />
+              <path class="head" d="M113 142 L120 146 L113 150 Z" />
+              <path d="M240 146 H265" />
+              <path class="head" d="M265 142 L272 146 L265 150 Z" />
+              <path d="M356 146 H381" />
+              <path class="head" d="M381 142 L388 146 L381 150 Z" />
+              <path d="M472 146 H497" />
+              <path class="head" d="M497 142 L504 146 L497 150 Z" />
+              <path d="M628 146 H644 V66 H653" />
+              <path class="head" d="M653 62 L660 66 L653 70 Z" />
+              <path d="M644 146 H653" />
+              <path class="head" d="M653 142 L660 146 L653 150 Z" />
+              <path d="M644 146 V218 H653" />
+              <path class="head" d="M653 214 L660 218 L653 222 Z" />
+            </svg>
+            <figcaption>
+              <strong>Figure 2. Proposed.</strong> The outbox row is written in the same transaction
+              as the domain change. The relay reads it in commit order and publishes to the queue;
+              each channel has its own worker pool and rate limit.
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="options">
+          <h2><span class="num">5</span>Options and decision</h2>
+          <div class="tw">
+            <table class="options">
+              <thead>
+                <tr>
+                  <th scope="col">Option</th>
+                  <th scope="col">p95</th>
+                  <th scope="col">DB impact</th>
+                  <th scope="col">Effort</th>
+                  <th scope="col">New infra</th>
+                  <th scope="col">Risk</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">A. Keep cron, lower interval to 5 s</th>
+                  <td class="n">≈ 8 s</td>
+                  <td>DB scan ×12</td>
+                  <td class="n">1 day</td>
+                  <td>none</td>
+                  <td>high (DB load)</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    B. Transactional outbox + queue <span class="badge accent">Recommended</span>
+                  </th>
+                  <td class="n">≈ 2 s</td>
+                  <td>near zero</td>
+                  <td class="n">4 weeks</td>
+                  <td>queue (already run for jobs)</td>
+                  <td>medium</td>
+                </tr>
+                <tr>
+                  <th scope="row">C. Change data capture (Debezium)</th>
+                  <td class="n">≈ 1 s</td>
+                  <td>WAL reads</td>
+                  <td class="n">6 weeks</td>
+                  <td>Kafka Connect cluster</td>
+                  <td>medium-high (new ops surface)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout decision">
+            <p>
+              <span class="label">Decision</span>Option B. CDC is better long-term but adds
+              infrastructure nobody on the team operates today; revisit when a second consumer of
+              the event stream appears.
+            </p>
+          </div>
+        </section>
+
+        <section id="numbers">
+          <h2><span class="num">6</span>Key numbers</h2>
+          <div class="tw">
+            <table class="numbers">
+              <thead>
+                <tr>
+                  <th scope="col">Measure</th>
+                  <th scope="col">Before</th>
+                  <th scope="col"></th>
+                  <th scope="col">Target</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">p95 delivery</th>
+                  <td class="n">74 s</td>
+                  <td class="arrow">→</td>
+                  <td class="n target">&lt; 5 s</td>
+                </tr>
+                <tr>
+                  <th scope="row">DB CPU from scan</th>
+                  <td class="n">18%</td>
+                  <td class="arrow">→</td>
+                  <td class="n target">&lt; 2%</td>
+                </tr>
+                <tr>
+                  <th scope="row">Duplicate sends</th>
+                  <td class="n">0.4%</td>
+                  <td class="arrow">→</td>
+                  <td class="n target">0</td>
+                </tr>
+                <tr>
+                  <th scope="row">Rollback time</th>
+                  <td class="n">n/a</td>
+                  <td class="arrow">→</td>
+                  <td class="n target">
+                    &lt; 10 min
+                    <span
+                      class="small"
+                      style="font-family: var(--sans); font-weight: 400; color: var(--ink-2)"
+                      >(flag flip)</span
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="phases">
+          <h2><span class="num">7</span>Phases</h2>
+
+          <h3>Phase 0 · week 1 · Instrument the current pipeline</h3>
+          <p>
+            Baseline dashboards for the existing poller. Dashboards live under
+            <code>notifications/delivery</code>; press <kbd>Ctrl</kbd>+<kbd>K</kbd> in Grafana to
+            jump to them.
+          </p>
+          <p class="exit">
+            <span class="label">Exit</span>p50/p95/p99 and duplicate-rate dashboards reviewed by
+            SRE.
+          </p>
+
+          <h3>Phase 1 · weeks 2–3 · Outbox table and relay</h3>
+          <p>Dual-write behind flag <code>outbox_publish</code>.</p>
+          <p class="exit">
+            <span class="label">Exit</span>100% of events dual-written for 3 days with zero
+            divergence.
+          </p>
+
+          <h3>Phase 2 · week 4 · Per-channel workers</h3>
+          <p>
+            Workers with idempotency keys; shadow mode comparing outputs against the current sender.
+          </p>
+          <p class="exit"><span class="label">Exit</span>Shadow diff below 0.01% over 48 h.</p>
+
+          <h3>Phase 3 · week 5 · Cutover</h3>
+          <p>1% → 10% → 100%; remove cron.</p>
+          <p class="exit">
+            <span class="label">Exit</span>Cron deleted, dashboards green for 7 days.
+          </p>
+
+          <div class="callout warning">
+            <p>
+              <span class="label">Warning</span>Do not enable <code>outbox_publish</code> in
+              production before Phase 0 dashboards exist; we will have no way to detect divergence.
+            </p>
+          </div>
+        </section>
+
+        <section id="tasks">
+          <h2><span class="num">8</span>Work items</h2>
+          <ul class="tasks">
+            <li class="done">
+              <span class="box" aria-hidden="true"></span
+              ><span class="text">Baseline dashboards</span><span class="badge">Done</span>
+            </li>
+            <li class="done">
+              <span class="box" aria-hidden="true"></span
+              ><span class="text">Outbox table migration</span><span class="badge">Done</span>
+            </li>
+            <li>
+              <span class="box" aria-hidden="true"></span><span class="text">Relay service</span
+              ><span class="badge accent">Open</span>
+            </li>
+            <li>
+              <span class="box" aria-hidden="true"></span
+              ><span class="text">Idempotency key in <code>notification_deliveries</code></span
+              ><span class="badge accent">Open</span>
+            </li>
+            <li>
+              <span class="box" aria-hidden="true"></span><span class="text">Email worker</span
+              ><span class="badge accent">Open</span>
+            </li>
+            <li>
+              <span class="box" aria-hidden="true"></span><span class="text">Push worker</span
+              ><span class="badge accent">Open</span>
+            </li>
+            <li>
+              <span class="box" aria-hidden="true"></span
+              ><span class="text">Slack worker with 1 req/s per workspace limit</span
+              ><span class="badge accent">Open</span>
+            </li>
+            <li>
+              <span class="box" aria-hidden="true"></span><span class="text">Cutover runbook</span
+              ><span class="badge accent">Open</span>
+            </li>
+          </ul>
+        </section>
+
+        <section id="implementation">
+          <h2><span class="num">9</span>Outbox write and idempotency</h2>
+          <p>
+            The outbox insert goes inside the transaction that performs the domain write. Both rows
+            land or neither does.
+          </p>
+          <pre><code> async function markShipped(orderId: string, tx: Tx) {
+   await tx.execute(
+     `UPDATE orders SET status = 'shipped' WHERE id = $1`,
+     [orderId]);
+<span class="add">+  await tx.execute(
++    `INSERT INTO outbox (event_id, type, payload)
++     VALUES ($1, 'order.shipped', $2)`,
++    [newEventId(), { orderId }]);</span>
+   <span class="cmt">// commit happens in the caller</span>
+ }</code></pre>
+
+          <div class="callout note">
+            <p>
+              <span class="label">Note</span>The relay must read the outbox in commit order; use
+              <code>SELECT … FOR UPDATE SKIP LOCKED</code> with a batch size of 500.
+            </p>
+          </div>
+
+          <p>
+            Each delivery carries an idempotency key derived from the event, the channel and the
+            recipient. A unique index makes a second send for the same key fail at insert time.
+          </p>
+          <pre><code>idempotency_key = sha256(event_id + channel + recipient_id)
+
+CREATE UNIQUE INDEX notification_deliveries_idempotency_key
+  ON notification_deliveries (idempotency_key);</code></pre>
+        </section>
+
+        <section id="risks">
+          <h2><span class="num">10</span>Risks</h2>
+          <div class="tw">
+            <table class="risks">
+              <thead>
+                <tr>
+                  <th scope="col">Risk</th>
+                  <th scope="col">Likelihood</th>
+                  <th scope="col">Impact</th>
+                  <th scope="col">Mitigation</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Relay lag under write bursts</th>
+                  <td>medium</td>
+                  <td>high</td>
+                  <td>Batch size 500; two relay replicas with leader lease.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Provider rate limits (Slack 1 req/s per workspace)</th>
+                  <td>high</td>
+                  <td>medium</td>
+                  <td>Per-channel token bucket; DLQ after 5 attempts.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Outbox table growth</th>
+                  <td>medium</td>
+                  <td>medium</td>
+                  <td>Delete rows older than 7 days; partition by day.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Dual-write divergence during Phase 1</th>
+                  <td>low</td>
+                  <td>high</td>
+                  <td>Nightly reconciliation job; alert at &gt; 0 diffs.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="questions">
+          <h2><span class="num">11</span>Open questions</h2>
+          <ol class="questions">
+            <li>
+              Should Slack delivery move to a separate worker pool per workspace?
+              <span class="owner">owner: Ana</span>
+            </li>
+            <li>Retention for the DLQ: 7 or 30 days? <span class="owner">owner: SRE</span></li>
+            <li>
+              Do we keep the <code>events</code> table after cutover for audit?
+              <span class="owner">owner: Product</span>
+            </li>
+          </ol>
+        </section>
+
+        <section id="rollback">
+          <h2><span class="num">12</span>Rollback</h2>
+          <p>
+            Flip <code>outbox_publish</code> off; workers drain the queue. Cron is only deleted in
+            Phase 3, after 7 green days, so until then rollback is a flag change under 10 minutes.
+          </p>
+        </section>
+
+        <section id="glossary">
+          <h2><span class="num">13</span>Glossary</h2>
+          <dl class="glossary">
+            <dt>Outbox</dt>
+            <dd>A table written in the same transaction as the domain change, read by a relay.</dd>
+            <dt>Relay</dt>
+            <dd>The process that moves outbox rows to the queue.</dd>
+            <dt>DLQ</dt>
+            <dd>Dead-letter queue for deliveries that failed 5 times.</dd>
+          </dl>
+        </section>
+
+        <section id="references">
+          <h2><span class="num">14</span>References</h2>
+          <ul class="refs">
+            <li>
+              <a href="https://grafana.example.internal/d/notif-delivery"
+                >Notification delivery dashboard</a
+              ><span class="url">grafana.example.internal/d/notif-delivery</span>
+            </li>
+            <li>
+              <a href="https://wiki.example.internal/platform/transactional-outbox"
+                >Transactional outbox pattern write-up</a
+              ><span class="url">wiki.example.internal/platform/transactional-outbox</span>
+            </li>
+            <li>
+              <a href="https://incidents.example.internal/INC-2031"
+                >INC-2031 incident review, 2026-08-12</a
+              ><span class="url">incidents.example.internal/INC-2031</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="footnotes" aria-label="Footnotes">
+          <ol>
+            <li id="fn1">
+              Source: <code>pg_stat_statements</code>, 7-day window, 2026-09-08 to 09-14.
+              <a class="back" href="#fnref1" aria-label="Back to reference 1">↩</a>
+            </li>
+            <li id="fn2">
+              Source: <code>deliveries</code> table, June–August 2026.
+              <a class="back" href="#fnref2" aria-label="Back to reference 2">↩</a>
+            </li>
+          </ol>
+        </section>
+      </main>
+
+      <footer class="colophon">
+        <p>PLAT-0142 · Draft for review · Platform team · 2026-09-20</p>
+      </footer>
+    </div>
+  </body>
+</html>
