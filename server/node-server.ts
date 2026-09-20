@@ -2,9 +2,9 @@ import { Effect } from 'effect'
 
 import type { EnvMap } from '../lib/headers.js'
 import { readConfig } from '../lib/config.js'
-import { handlePlansRequest } from '../lib/http.js'
+import { handleAhaRequest } from '../lib/http.js'
 import { s3StorageLayer } from '../lib/storage-s3.js'
-import { createPlansServer } from './node-adapter.js'
+import { createAhaServer } from './node-adapter.js'
 
 function snapshotEnv(): EnvMap {
   const envRecord: EnvMap = {}
@@ -17,16 +17,16 @@ function snapshotEnv(): EnvMap {
 }
 
 export function startNodeServer(port: number, host: string): void {
-  const server = createPlansServer((request) =>
+  const server = createAhaServer((request) =>
     Effect.gen(function* () {
       const config = yield* readConfig(snapshotEnv())
 
-      return yield* handlePlansRequest(request, config).pipe(Effect.provide(s3StorageLayer(config)))
+      return yield* handleAhaRequest(request, config).pipe(Effect.provide(s3StorageLayer(config)))
     })
   )
 
   server.listen(port, host, () => {
-    process.stdout.write(`plans dev server on http://${host}:${String(port)}\n`)
+    process.stdout.write(`aha dev server on http://${host}:${String(port)}\n`)
   })
 }
 

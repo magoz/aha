@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { runPlansRequest } from '../server/vercel-adapter.js'
+import { runAhaRequest } from '../server/vercel-adapter.js'
 import { TEST_CONFIG, ownerAuth } from './helpers.js'
 
 interface StreamRequestInit extends RequestInit {
@@ -8,8 +8,8 @@ interface StreamRequestInit extends RequestInit {
 }
 
 const ENV_KEYS = [
-  'PLANS_OWNER_TOKEN',
-  'PLANS_PRIVATE_READ_TOKEN',
+  'AHA_OWNER_TOKEN',
+  'AHA_PRIVATE_READ_TOKEN',
   'R2_BUCKET',
   'R2_ENDPOINT',
   'R2_ACCESS_KEY_ID',
@@ -17,8 +17,8 @@ const ENV_KEYS = [
 ]
 
 function setServiceEnv(): void {
-  process.env['PLANS_OWNER_TOKEN'] = TEST_CONFIG.ownerToken
-  process.env['PLANS_PRIVATE_READ_TOKEN'] = TEST_CONFIG.privateReadToken
+  process.env['AHA_OWNER_TOKEN'] = TEST_CONFIG.ownerToken
+  process.env['AHA_PRIVATE_READ_TOKEN'] = TEST_CONFIG.privateReadToken
   process.env['R2_BUCKET'] = TEST_CONFIG.bucket
   process.env['R2_ENDPOINT'] = TEST_CONFIG.endpoint
   process.env['R2_ACCESS_KEY_ID'] = TEST_CONFIG.accessKeyId
@@ -35,7 +35,7 @@ describe('vercel web adapter', () => {
   it('answers health checks as a web Response without storage', async () => {
     setServiceEnv()
 
-    const response = await runPlansRequest(new Request('https://plans.oox.sh/api/health'), null)
+    const response = await runAhaRequest(new Request('https://aha.oox.sh/api/health'), null)
 
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
@@ -43,7 +43,7 @@ describe('vercel web adapter', () => {
   })
 
   it('fails closed with a generic 500 when config is missing', async () => {
-    const response = await runPlansRequest(new Request('https://plans.oox.sh/api/health'), null)
+    const response = await runAhaRequest(new Request('https://aha.oox.sh/api/health'), null)
 
     expect(response.status).toBe(500)
     expect(response.headers.get('cache-control')).toBe('no-store')
@@ -71,8 +71,8 @@ describe('vercel web adapter', () => {
       duplex: 'half'
     }
 
-    const request = new Request('https://plans.oox.sh/api/documents', init)
-    const response = await runPlansRequest(request, null)
+    const request = new Request('https://aha.oox.sh/api/documents', init)
+    const response = await runAhaRequest(request, null)
 
     expect(response.status).toBe(413)
     expect(response.headers.get('cache-control')).toBe('no-store')
@@ -94,8 +94,8 @@ describe('vercel web adapter', () => {
       duplex: 'half'
     }
 
-    const request = new Request('https://plans.oox.sh/api/health', init)
-    const response = await runPlansRequest(request, null)
+    const request = new Request('https://aha.oox.sh/api/health', init)
+    const response = await runAhaRequest(request, null)
 
     expect(response.status).toBe(500)
     expect(await response.text()).toBe('internal error')

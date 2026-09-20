@@ -12,8 +12,8 @@ import { TEST_CONFIG, ownerAuth } from './helpers.js'
 const VALID_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
 
 const ENV_KEYS = [
-  'PLANS_OWNER_TOKEN',
-  'PLANS_PRIVATE_READ_TOKEN',
+  'AHA_OWNER_TOKEN',
+  'AHA_PRIVATE_READ_TOKEN',
   'R2_BUCKET',
   'R2_ENDPOINT',
   'R2_ACCESS_KEY_ID',
@@ -21,8 +21,8 @@ const ENV_KEYS = [
 ]
 
 function setRefusedStorageEnv(): void {
-  process.env['PLANS_OWNER_TOKEN'] = TEST_CONFIG.ownerToken
-  process.env['PLANS_PRIVATE_READ_TOKEN'] = TEST_CONFIG.privateReadToken
+  process.env['AHA_OWNER_TOKEN'] = TEST_CONFIG.ownerToken
+  process.env['AHA_PRIVATE_READ_TOKEN'] = TEST_CONFIG.privateReadToken
   process.env['R2_BUCKET'] = TEST_CONFIG.bucket
   process.env['R2_ENDPOINT'] = 'http://127.0.0.1:1'
   process.env['R2_ACCESS_KEY_ID'] = TEST_CONFIG.accessKeyId
@@ -43,11 +43,11 @@ describe('vercel route files', () => {
   it('serves root and health through their direct aliases', async () => {
     setRefusedStorageEnv()
 
-    const root = await rootRoute.fetch(new Request('https://plans.oox.sh/'))
-    const health = await healthRoute.fetch(new Request('https://plans.oox.sh/api/health'))
+    const root = await rootRoute.fetch(new Request('https://aha.oox.sh/'))
+    const health = await healthRoute.fetch(new Request('https://aha.oox.sh/api/health'))
 
     expect(root.status).toBe(200)
-    expect(await root.text()).toBe('plans')
+    expect(await root.text()).toBe('aha')
     expect(health.status).toBe(200)
     expect(await health.text()).toBe(JSON.stringify({ ok: true }))
   })
@@ -55,7 +55,7 @@ describe('vercel route files', () => {
   it('gates the documents collection on the direct alias', async () => {
     setRefusedStorageEnv()
 
-    const anonymous = await documentsRoute.fetch(new Request('https://plans.oox.sh/api/documents'))
+    const anonymous = await documentsRoute.fetch(new Request('https://aha.oox.sh/api/documents'))
 
     expect(anonymous.status).toBe(401)
   })
@@ -64,7 +64,7 @@ describe('vercel route files', () => {
     setRefusedStorageEnv()
 
     const anonymous = await documentRoute.fetch(
-      new Request(`https://plans.oox.sh/api/documents/${VALID_ID}`)
+      new Request(`https://aha.oox.sh/api/documents/${VALID_ID}`)
     )
 
     expect(anonymous.status).toBe(502)
@@ -75,7 +75,7 @@ describe('vercel route files', () => {
     setRefusedStorageEnv()
 
     const response = await documentRoute.fetch(
-      authed(`https://plans.oox.sh/api/documents/${VALID_ID}`, 'GET')
+      authed(`https://aha.oox.sh/api/documents/${VALID_ID}`, 'GET')
     )
 
     expect(response.status).toBe(502)
@@ -86,7 +86,7 @@ describe('vercel route files', () => {
     setRefusedStorageEnv()
 
     const response = await publishRoute.fetch(
-      authed(`https://plans.oox.sh/api/documents/${VALID_ID}/publish`, 'POST')
+      authed(`https://aha.oox.sh/api/documents/${VALID_ID}/publish`, 'POST')
     )
 
     expect(response.status).toBe(502)
@@ -97,19 +97,19 @@ describe('vercel route files', () => {
     setRefusedStorageEnv()
 
     const method = await publishRoute.fetch(
-      authed(`https://plans.oox.sh/api/documents/${VALID_ID}/publish`, 'GET')
+      authed(`https://aha.oox.sh/api/documents/${VALID_ID}/publish`, 'GET')
     )
 
     expect(method.status).toBe(405)
 
     const badId = await documentRoute.fetch(
-      authed('https://plans.oox.sh/api/documents/not-an-id', 'GET')
+      authed('https://aha.oox.sh/api/documents/not-an-id', 'GET')
     )
 
     expect(badId.status).toBe(400)
 
     const anonymousUnpublish = await unpublishRoute.fetch(
-      new Request(`https://plans.oox.sh/api/documents/${VALID_ID}/unpublish`, { method: 'POST' })
+      new Request(`https://aha.oox.sh/api/documents/${VALID_ID}/unpublish`, { method: 'POST' })
     )
 
     expect(anonymousUnpublish.status).toBe(401)
@@ -119,7 +119,7 @@ describe('vercel route files', () => {
     setRefusedStorageEnv()
 
     const response = await publicDocumentRoute.fetch(
-      new Request(`https://plans.oox.sh/api/public-document?id=${VALID_ID}`)
+      new Request(`https://aha.oox.sh/api/public-document?id=${VALID_ID}`)
     )
 
     expect(response.status).toBe(502)
@@ -130,7 +130,7 @@ describe('vercel route files', () => {
     setRefusedStorageEnv()
 
     const response = await publicDocumentRoute.fetch(
-      new Request('https://plans.oox.sh/api/public-document')
+      new Request('https://aha.oox.sh/api/public-document')
     )
 
     expect(response.status).toBe(404)

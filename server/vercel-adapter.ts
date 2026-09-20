@@ -4,8 +4,8 @@ import type { EnvMap, HeaderMap } from '../lib/headers.js'
 import { readConfig } from '../lib/config.js'
 import { PayloadTooLarge, RequestBodyFailed } from '../lib/errors.js'
 import { MAX_HTML_BYTES } from '../lib/html-limits.js'
-import { handlePlansRequest } from '../lib/http.js'
-import type { PlansRequest, PlansResponse } from '../lib/http.js'
+import { handleAhaRequest } from '../lib/http.js'
+import type { AhaRequest, AhaResponse } from '../lib/http.js'
 import { withSecurityHeaders } from '../lib/security-headers.js'
 import { s3StorageLayer } from '../lib/storage-s3.js'
 
@@ -95,7 +95,7 @@ function readRequestBody(
   })
 }
 
-function toWebResponse(response: PlansResponse): Response {
+function toWebResponse(response: AhaResponse): Response {
   const headers = new Headers()
 
   for (const key of Object.keys(response.headers)) {
@@ -113,7 +113,7 @@ function toWebResponse(response: PlansResponse): Response {
   return new Response(new Uint8Array(response.body), { status: response.status, headers })
 }
 
-function payloadTooLargeResponse(): PlansResponse {
+function payloadTooLargeResponse(): AhaResponse {
   return {
     status: 413,
     headers: withSecurityHeaders({ 'content-type': 'application/json; charset=utf-8' }),
@@ -128,20 +128,20 @@ function internalError(): Response {
   })
 }
 
-export function runPlansRequest(request: Request, overrideUrl: string | null): Promise<Response> {
+export function runAhaRequest(request: Request, overrideUrl: string | null): Promise<Response> {
   const program = Effect.gen(function* () {
     const config = yield* readConfig(snapshotEnv())
     const layer = s3StorageLayer(config)
     const body = yield* readRequestBody(request)
 
-    const plansRequest: PlansRequest = {
+    const ahaRequest: AhaRequest = {
       method: request.method,
       url: overrideUrl ?? request.url,
       headers: requestHeaders(request),
       body
     }
 
-    return yield* handlePlansRequest(plansRequest, config).pipe(Effect.provide(layer))
+    return yield* handleAhaRequest(ahaRequest, config).pipe(Effect.provide(layer))
   })
 
   return Effect.runPromise(

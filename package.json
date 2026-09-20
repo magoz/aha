@@ -1,14 +1,14 @@
 {
-  "name": "plans",
+  "name": "aha",
   "version": "0.1.0",
   "private": true,
   "description": "Personal HTML publishing for agents. Private by default; publish via R2 marker objects.",
   "bin": {
-    "plans": "./dist/cli/plans.js"
+    "aha": "./dist/cli/aha.js"
   },
   "type": "module",
   "scripts": {
-    "build": "tsc -b && tsup && chmod +x dist/cli/plans.js",
+    "build": "tsc -b && tsup && chmod +x dist/cli/aha.js",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",
@@ -18,7 +18,7 @@
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm lint:fixtures && pnpm test && pnpm build",
     "dev": "tsx server/node-server.ts",
     "gateway": "tsx gateway/private-gateway.ts",
-    "plans": "tsx cli/plans.ts"
+    "aha": "tsx cli/aha.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1136.0",

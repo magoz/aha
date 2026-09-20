@@ -5,14 +5,14 @@ import * as Effect from 'effect/Effect'
 
 function bucketNameForStage(stage: string): string {
   if (stage === 'prod') {
-    return 'plans-prod'
+    return 'aha-prod'
   }
 
-  return 'plans-dev'
+  return 'aha-dev'
 }
 
 export default Alchemy.Stack(
-  'plans',
+  'aha',
   {
     providers: Cloudflare.providers(),
     state: Cloudflare.state()
@@ -22,12 +22,12 @@ export default Alchemy.Stack(
     const { accountId } = yield* yield* Cloudflare.CloudflareEnvironment
     const bucketName = bucketNameForStage(stack.stage)
 
-    const bucket = yield* Cloudflare.R2.Bucket('plans-bucket', {
+    const bucket = yield* Cloudflare.R2.Bucket('aha-bucket', {
       name: bucketName,
       forceDestroy: false
     }).pipe(RemovalPolicy.retain())
 
-    const token = yield* Cloudflare.ApiToken.AccountApiToken('plans-r2-access', {
+    const token = yield* Cloudflare.ApiToken.AccountApiToken('aha-r2-access', {
       name: `${bucketName}-service`,
       policies: [
         {

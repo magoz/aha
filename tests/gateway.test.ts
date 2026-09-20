@@ -119,9 +119,9 @@ describe('private gateway', () => {
       res.end('<!doctype html><html><body><p>private</p></body></html>')
     })
     const upstreamPort = await listenEphemeral(upstream)
-    process.env['PLANS_UPSTREAM_URL'] = `http://127.0.0.1:${String(upstreamPort)}`
-    process.env['PLANS_GATEWAY_INSECURE_LOOPBACK'] = '1'
-    process.env['PLANS_PRIVATE_READ_TOKEN'] = UPSTREAM_TOKEN
+    process.env['AHA_UPSTREAM_URL'] = `http://127.0.0.1:${String(upstreamPort)}`
+    process.env['AHA_GATEWAY_INSECURE_LOOPBACK'] = '1'
+    process.env['AHA_PRIVATE_READ_TOKEN'] = UPSTREAM_TOKEN
     gateway = startPrivateGateway(0)
     await new Promise<void>((resolve, reject) => {
       gateway?.once('error', reject)
@@ -143,9 +143,9 @@ describe('private gateway', () => {
       upstream = null
     }
 
-    delete process.env['PLANS_UPSTREAM_URL']
-    delete process.env['PLANS_GATEWAY_INSECURE_LOOPBACK']
-    delete process.env['PLANS_PRIVATE_READ_TOKEN']
+    delete process.env['AHA_UPSTREAM_URL']
+    delete process.env['AHA_GATEWAY_INSECURE_LOOPBACK']
+    delete process.env['AHA_PRIVATE_READ_TOKEN']
   })
 
   it('proxies private reads while stripping client credentials', async () => {

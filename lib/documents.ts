@@ -14,7 +14,7 @@ import {
 import { HTML_CONTENT_TYPE, MAX_HTML_BYTES, isHtmlContentType } from './html-limits.js'
 import { generatePlanId, parsePlanId } from './plan-id.js'
 import type { InvalidPlanId, PlanId } from './plan-id.js'
-import { PlansStorageTag } from './storage.js'
+import { AhaStorageTag } from './storage.js'
 import type { ListEntry, StoredDocument } from './storage.js'
 
 export interface UploadResult {
@@ -44,7 +44,7 @@ export function uploadDocument(
   | StorageUnavailable
   | DocumentNotFound
   | PreconditionFailed,
-  PlansStorageTag
+  AhaStorageTag
 > {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
@@ -62,7 +62,7 @@ export function uploadDocument(
     }
 
     const id = yield* generatePlanId()
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
 
     const etag = yield* storage.putDocument(id, body, {
       ifMatch: null,
@@ -89,7 +89,7 @@ export function updateDocument(
   | DocumentNotFound
   | PreconditionFailed
   | InvalidPlanId,
-  PlansStorageTag
+  AhaStorageTag
 > {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
@@ -107,7 +107,7 @@ export function updateDocument(
     }
 
     const id = yield* parsePlanId(idString)
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
     yield* storage.headDocument(id)
 
     return yield* storage.putDocument(id, body, { ifMatch, contentType: HTML_CONTENT_TYPE })
@@ -121,12 +121,12 @@ export function readDocumentWithAccess(
 ): Effect.Effect<
   ReadResult,
   Unauthorized | StorageUnavailable | DocumentNotFound | InvalidPlanId,
-  PlansStorageTag
+  AhaStorageTag
 > {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
     const id = yield* parsePlanId(idString)
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
 
     if (canReadContent(caller)) {
       const document = yield* storage.getDocument(id)
@@ -153,7 +153,7 @@ export function publishDocument(
 ): Effect.Effect<
   void,
   Unauthorized | StorageUnavailable | DocumentNotFound | InvalidPlanId,
-  PlansStorageTag
+  AhaStorageTag
 > {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
@@ -163,7 +163,7 @@ export function publishDocument(
     }
 
     const id = yield* parsePlanId(idString)
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
     yield* storage.headDocument(id)
     yield* storage.putMarker(id)
   })
@@ -176,7 +176,7 @@ export function unpublishDocument(
 ): Effect.Effect<
   void,
   Unauthorized | StorageUnavailable | DocumentNotFound | InvalidPlanId,
-  PlansStorageTag
+  AhaStorageTag
 > {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
@@ -186,7 +186,7 @@ export function unpublishDocument(
     }
 
     const id = yield* parsePlanId(idString)
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
     yield* storage.headDocument(id)
     yield* storage.deleteMarker(id)
   })
@@ -196,7 +196,7 @@ export function listDocuments(
   authorization: string | null,
   onlyPublic: boolean,
   config: ServiceConfig
-): Effect.Effect<ReadonlyArray<ListEntry>, Unauthorized | StorageUnavailable, PlansStorageTag> {
+): Effect.Effect<ReadonlyArray<ListEntry>, Unauthorized | StorageUnavailable, AhaStorageTag> {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
 
@@ -204,7 +204,7 @@ export function listDocuments(
       return yield* new Unauthorized({})
     }
 
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
     const entries = yield* storage.listDocuments()
 
     if (!onlyPublic) {
@@ -222,7 +222,7 @@ export function deleteDocument(
 ): Effect.Effect<
   void,
   Unauthorized | StorageUnavailable | DocumentNotFound | PreconditionFailed | InvalidPlanId,
-  PlansStorageTag
+  AhaStorageTag
 > {
   return Effect.gen(function* () {
     const caller = callerFromHeaders(authorization, config)
@@ -232,7 +232,7 @@ export function deleteDocument(
     }
 
     const id = yield* parsePlanId(idString)
-    const storage = yield* PlansStorageTag
+    const storage = yield* AhaStorageTag
     const isPublic = yield* storage.markerExists(id)
 
     if (isPublic) {

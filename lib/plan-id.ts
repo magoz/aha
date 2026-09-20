@@ -42,7 +42,7 @@ export function generatePlanId(): Effect.Effect<PlanId> {
 }
 
 export function documentKey(id: PlanId): string {
-  return `plans/${id}.html`
+  return `aha/${id}.html`
 }
 
 export function markerKey(id: PlanId): string {

@@ -6,7 +6,7 @@ import { DEFAULT_PUBLIC_URL } from '../lib/config.js'
 import type { EnvMap } from '../lib/headers.js'
 import { isPlanId } from '../lib/plan-id.js'
 
-export const DEFAULT_ENDPOINT = 'https://plans.oox.sh'
+export const DEFAULT_ENDPOINT = 'https://aha.oox.sh'
 
 export class CliUsageError extends Schema.TaggedError<CliUsageError>()('CliUsageError', {
   message: Schema.String
@@ -92,7 +92,7 @@ function readToken(args: ReadonlyArray<string>, env: EnvMap): string | null {
     }
   }
 
-  const fromEnv = env['PLANS_OWNER_TOKEN']
+  const fromEnv = env['AHA_OWNER_TOKEN']
 
   if (fromEnv !== undefined && fromEnv.length > 0) {
     return fromEnv
@@ -112,7 +112,7 @@ function readEndpoint(args: ReadonlyArray<string>, env: EnvMap): string {
     }
   }
 
-  const fromEnv = env['PLANS_ENDPOINT']
+  const fromEnv = env['AHA_ENDPOINT']
 
   if (fromEnv !== undefined && fromEnv.length > 0) {
     return fromEnv
@@ -132,7 +132,7 @@ function readPublicUrl(args: ReadonlyArray<string>, env: EnvMap): string {
     }
   }
 
-  const fromEnv = env['PLANS_PUBLIC_URL']
+  const fromEnv = env['AHA_PUBLIC_URL']
 
   if (fromEnv !== undefined && fromEnv.length > 0) {
     return fromEnv
@@ -217,8 +217,8 @@ export function resolveTokenFromFile(path: string): Effect.Effect<string, CliUsa
     for (const line of content.split('\n')) {
       const trimmed = line.trim()
 
-      if (trimmed.startsWith('PLANS_OWNER_TOKEN=')) {
-        const token = trimmed.slice('PLANS_OWNER_TOKEN='.length).trim()
+      if (trimmed.startsWith('AHA_OWNER_TOKEN=')) {
+        const token = trimmed.slice('AHA_OWNER_TOKEN='.length).trim()
 
         if (token.length > 0) {
           return token
@@ -227,7 +227,7 @@ export function resolveTokenFromFile(path: string): Effect.Effect<string, CliUsa
     }
 
     return yield* new CliUsageError({
-      message: `no PLANS_OWNER_TOKEN entry in credentials file: ${path}`
+      message: `no AHA_OWNER_TOKEN entry in credentials file: ${path}`
     })
   })
 }
@@ -239,7 +239,7 @@ function defaultCredentialsPath(): string | null {
     return null
   }
 
-  return `${home}/.config/plans/credentials`
+  return `${home}/.config/aha/credentials`
 }
 
 function resolveOwnerToken(flag: string | null, env: EnvMap): Effect.Effect<string, CliUsageError> {
@@ -247,7 +247,7 @@ function resolveOwnerToken(flag: string | null, env: EnvMap): Effect.Effect<stri
     return Effect.succeed(flag)
   }
 
-  const configured = env['PLANS_CREDENTIALS_FILE']
+  const configured = env['AHA_CREDENTIALS_FILE']
 
   if (configured !== undefined && configured.length > 0) {
     return resolveTokenFromFile(configured)
@@ -256,7 +256,7 @@ function resolveOwnerToken(flag: string | null, env: EnvMap): Effect.Effect<stri
   const fallback = defaultCredentialsPath()
 
   if (fallback === null) {
-    return fail('missing owner token: pass --token or set PLANS_OWNER_TOKEN')
+    return fail('missing owner token: pass --token or set AHA_OWNER_TOKEN')
   }
 
   return Effect.flatMap(
@@ -268,7 +268,7 @@ function resolveOwnerToken(flag: string | null, env: EnvMap): Effect.Effect<stri
     ),
     (exists) => {
       if (!exists) {
-        return fail('missing owner token: pass --token or set PLANS_OWNER_TOKEN')
+        return fail('missing owner token: pass --token or set AHA_OWNER_TOKEN')
       }
 
       return resolveTokenFromFile(fallback)
@@ -291,14 +291,14 @@ export function parseCliArgs(
     const command = args[0]
 
     if (command === undefined) {
-      return fail('usage: plans <upload|update|publish|unpublish|list|read|delete> ...')
+      return fail('usage: aha <upload|update|publish|unpublish|list|read|delete> ...')
     }
 
     if (command === 'upload') {
       const file = args[1]
 
       if (file === undefined) {
-        return fail('usage: plans upload FILE [--endpoint URL] [--token TOKEN]')
+        return fail('usage: aha upload FILE [--endpoint URL] [--token TOKEN]')
       }
 
       return Effect.flatMap(
@@ -317,9 +317,7 @@ export function parseCliArgs(
       const file = args[2]
 
       if (id === undefined || file === undefined) {
-        return fail(
-          'usage: plans update ID FILE [--if-match ETAG] [--endpoint URL] [--token TOKEN]'
-        )
+        return fail('usage: aha update ID FILE [--if-match ETAG] [--endpoint URL] [--token TOKEN]')
       }
 
       if (!isPlanId(id)) {
@@ -344,7 +342,7 @@ export function parseCliArgs(
       const id = args[1]
 
       if (id === undefined) {
-        return fail(`usage: plans ${command} ID [--endpoint URL] [--token TOKEN]`)
+        return fail(`usage: aha ${command} ID [--endpoint URL] [--token TOKEN]`)
       }
 
       if (!isPlanId(id)) {
@@ -401,7 +399,7 @@ export function parseCliArgs(
       const id = args[1]
 
       if (id === undefined) {
-        return fail('usage: plans read ID [--output FILE] [--endpoint URL] [--token TOKEN]')
+        return fail('usage: aha read ID [--output FILE] [--endpoint URL] [--token TOKEN]')
       }
 
       if (!isPlanId(id)) {

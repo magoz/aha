@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: { 'cli/plans': 'cli/plans.ts' },
+  entry: { 'cli/aha': 'cli/aha.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'node24',

@@ -5,7 +5,7 @@ import { Effect } from 'effect'
 
 import type { HeaderMap } from '../lib/headers.js'
 import { MAX_HTML_BYTES } from '../lib/html-limits.js'
-import type { PlansRequest, PlansResponse } from '../lib/http.js'
+import type { AhaRequest, AhaResponse } from '../lib/http.js'
 import { withSecurityHeaders } from '../lib/security-headers.js'
 
 function lowercaseHeaders(raw: IncomingHttpHeaders): HeaderMap {
@@ -23,7 +23,7 @@ function lowercaseHeaders(raw: IncomingHttpHeaders): HeaderMap {
   return out
 }
 
-function writeResponse(res: ServerResponse, response: PlansResponse): void {
+function writeResponse(res: ServerResponse, response: AhaResponse): void {
   res.statusCode = response.status
 
   for (const key of Object.keys(response.headers)) {
@@ -45,8 +45,8 @@ function writeError(res: ServerResponse, status: number, message: string): void 
   })
 }
 
-export function createPlansServer<E>(
-  handle: (request: PlansRequest) => Effect.Effect<PlansResponse, E>
+export function createAhaServer<E>(
+  handle: (request: AhaRequest) => Effect.Effect<AhaResponse, E>
 ): Server {
   const server = createServer((req, res) => {
     const chunks: Array<Uint8Array> = []
@@ -89,7 +89,7 @@ export function createPlansServer<E>(
 
       finished = true
 
-      const request: PlansRequest = {
+      const request: AhaRequest = {
         method: req.method ?? 'GET',
         url: req.url ?? '/',
         headers: lowercaseHeaders(req.headers),

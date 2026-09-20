@@ -1,4 +1,4 @@
-import { runPlansRequest } from '../server/vercel-adapter.js'
+import { runAhaRequest } from '../server/vercel-adapter.js'
 
 function notFound(): Response {
   return new Response('not found', {
@@ -15,6 +15,6 @@ export default {
       return Promise.resolve(notFound())
     }
 
-    return runPlansRequest(request, `/${id}`)
+    return runAhaRequest(request, `/${id}`)
   }
 }

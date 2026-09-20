@@ -1,9 +1,9 @@
 {
-  "name": "plans-infra",
+  "name": "aha-infra",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Alchemy Cloudflare R2 provisioning for plans. Operator-run only; core never imports Alchemy.",
+  "description": "Alchemy Cloudflare R2 provisioning for aha. Operator-run only; core never imports Alchemy.",
   "engines": {
     "node": ">=24"
   },

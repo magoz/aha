@@ -31,7 +31,7 @@ describe('plan-id', () => {
       const bad = [
         '',
         '../secret',
-        'plans/x.html',
+        'aha/x.html',
         'short',
         'a'.repeat(21),
         'a'.repeat(23),

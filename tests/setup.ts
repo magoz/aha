@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import { afterAll } from '@effect/vitest'
 
 // CLI fallback reads the user's home directory. Tests must never consume real
-// credentials, even when run on a machine where Plans is already configured.
-const home = await mkdtemp(join(tmpdir(), 'plans-test-home-'))
+// credentials, even when run on a machine where Aha is already configured.
+const home = await mkdtemp(join(tmpdir(), 'aha-test-home-'))
 
 const previousHome = process.env['HOME']
 

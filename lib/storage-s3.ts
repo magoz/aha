@@ -19,7 +19,7 @@ import {
 import { MAX_HTML_BYTES } from './html-limits.js'
 import { documentKey, isPlanId, markerKey } from './plan-id.js'
 import type { PlanId } from './plan-id.js'
-import { PlansStorageTag } from './storage.js'
+import { AhaStorageTag } from './storage.js'
 import type { DocumentHead, ListEntry, PutOptions, StoredDocument } from './storage.js'
 
 interface AwsFailureMetadata {
@@ -91,11 +91,11 @@ function toStorageError(operation: string): StorageUnavailable {
 }
 
 function idFromDocumentKey(key: string): PlanId | null {
-  if (!key.startsWith('plans/') || !key.endsWith('.html')) {
+  if (!key.startsWith('aha/') || !key.endsWith('.html')) {
     return null
   }
 
-  const id = key.slice(6, key.length - 5)
+  const id = key.slice(4, key.length - 5)
 
   if (!isPlanId(id)) {
     return null
@@ -216,7 +216,7 @@ function listAllWithPrefix(
 }
 
 export function makeS3Storage(client: S3Client, bucket: string) {
-  return PlansStorageTag.of({
+  return AhaStorageTag.of({
     getDocument: (
       id: PlanId
     ): Effect.Effect<StoredDocument, StorageUnavailable | DocumentNotFound> =>
@@ -350,7 +350,7 @@ export function makeS3Storage(client: S3Client, bucket: string) {
         const listed = yield* listAllWithPrefix(
           client,
           bucket,
-          'plans/',
+          'aha/',
           'listDocuments:request-failed'
         )
 
@@ -383,10 +383,10 @@ export function makeS3Storage(client: S3Client, bucket: string) {
   })
 }
 
-export function s3StorageLayer(config: ServiceConfig): Layer.Layer<PlansStorageTag, InvalidConfig> {
+export function s3StorageLayer(config: ServiceConfig): Layer.Layer<AhaStorageTag, InvalidConfig> {
   if (config.endpoint.trim().length === 0) {
     return Layer.effect(
-      PlansStorageTag,
+      AhaStorageTag,
       Effect.fail(new InvalidConfig({ detail: 'missing R2_ENDPOINT' }))
     )
   }
@@ -401,5 +401,5 @@ export function s3StorageLayer(config: ServiceConfig): Layer.Layer<PlansStorageT
     forcePathStyle: false
   })
 
-  return Layer.succeed(PlansStorageTag)(makeS3Storage(client, config.bucket))
+  return Layer.succeed(AhaStorageTag)(makeS3Storage(client, config.bucket))
 }

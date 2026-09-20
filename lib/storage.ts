@@ -27,7 +27,7 @@ export interface PutOptions {
   readonly contentType: string
 }
 
-export interface PlansStorage {
+export interface AhaStorage {
   readonly getDocument: (
     id: PlanId
   ) => Effect.Effect<StoredDocument, StorageUnavailable | DocumentNotFound>
@@ -48,6 +48,4 @@ export interface PlansStorage {
   readonly listDocuments: () => Effect.Effect<ReadonlyArray<ListEntry>, StorageUnavailable>
 }
 
-export class PlansStorageTag extends Context.Service<PlansStorageTag, PlansStorage>()(
-  'PlansStorage'
-) {}
+export class AhaStorageTag extends Context.Service<AhaStorageTag, AhaStorage>()('AhaStorage') {}

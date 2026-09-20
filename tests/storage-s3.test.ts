@@ -43,10 +43,10 @@ function listPage(prefix: string, token: string | null): string {
   }
 
   if (token === 't1') {
-    return `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>test-bucket</Name><Prefix>plans/</Prefix><KeyCount>1</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated><Contents><Key>plans/${ID_B}.html</Key><ETag>"e-page2"</ETag></Contents></ListBucketResult>`
+    return `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>test-bucket</Name><Prefix>aha/</Prefix><KeyCount>1</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated><Contents><Key>aha/${ID_B}.html</Key><ETag>"e-page2"</ETag></Contents></ListBucketResult>`
   }
 
-  return `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>test-bucket</Name><Prefix>plans/</Prefix><KeyCount>1</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>true</IsTruncated><NextContinuationToken>t1</NextContinuationToken><Contents><Key>plans/${ID_A}.html</Key><ETag>"e-page1"</ETag></Contents></ListBucketResult>`
+  return `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>test-bucket</Name><Prefix>aha/</Prefix><KeyCount>1</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>true</IsTruncated><NextContinuationToken>t1</NextContinuationToken><Contents><Key>aha/${ID_A}.html</Key><ETag>"e-page1"</ETag></Contents></ListBucketResult>`
 }
 
 function preconditionFailedXml(): string {
@@ -104,7 +104,7 @@ describe('s3 storage against a stub S3 endpoint', () => {
         return
       }
 
-      if (req.method === 'PUT' && parsed.pathname.startsWith('/test-bucket/plans/')) {
+      if (req.method === 'PUT' && parsed.pathname.startsWith('/test-bucket/aha/')) {
         req.resume()
         req.on('end', () => {
           const ifMatch = headerFirst(req.headers['if-match'])

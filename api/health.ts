@@ -1,7 +1,7 @@
-import { runPlansRequest } from '../server/vercel-adapter.js'
+import { runAhaRequest } from '../server/vercel-adapter.js'
 
 export default {
   fetch(request: Request): Promise<Response> {
-    return runPlansRequest(request, '/api/health')
+    return runAhaRequest(request, '/api/health')
   }
 }

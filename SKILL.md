@@ -1,7 +1,10 @@
-# Plans publishing skill
+# Aha publishing skill
 
-Publish a self-contained static HTML file with the `plans` CLI. Documents are
-private by default; publish only on explicit owner instruction.
+Publish a self-contained static HTML file with the `aha` CLI. The product is
+"Aha"; each document is "an aha": one self-contained page an agent hands you
+to explain something — explainers, visual concept walkthroughs, comparisons,
+plans. Documents are private by default; publish only on explicit owner
+instruction.
 
 ## Workflow
 
@@ -12,19 +15,19 @@ private by default; publish only on explicit owner instruction.
 2. Upload privately and capture the URL:
 
    ```sh
-   plans upload ./page.html
-   # prints {"id":"<id>","url":"https://plans.oox.sh/<id>","etag":"..."}
+   aha upload ./page.html
+   # prints {"id":"<id>","url":"https://aha.oox.sh/<id>","etag":"..."}
    ```
 
-   The share URL is `https://plans.oox.sh/<id>`. Anonymous off-tailnet reads
+   The share URL is `https://aha.oox.sh/<id>`. Anonymous off-tailnet reads
    return 404 until published. Private tailnet reads require the configured
    gateway and split DNS; an upload does not configure that infrastructure.
 
 3. Share the URL. The owner publishes explicitly:
 
    ```sh
-   plans publish <id>
-   plans unpublish <id>
+   aha publish <id>
+   aha unpublish <id>
    ```
 
 ## Document style
@@ -37,7 +40,7 @@ landing page.
 
 **Structure.** Kicker line (document id · owner · status badge), one `h1`,
 metadata `<dl>` (status, date, target, owner, reviewers), contents list, then
-numbered sections. Typical order for a plan: summary, problem, goals and
+numbered sections. Typical order for an aha: summary, problem, goals and
 non-goals, architecture, options and decision, key numbers, phases, work items,
 implementation notes, risks, open questions, rollback, glossary, references.
 Drop sections that do not apply; never add filler ones ("Introduction",
@@ -78,19 +81,19 @@ second accent color.
 ## Rules
 
 - Never publish or unpublish without an explicit owner instruction.
-- Keep secrets and credentials out of uploaded pages. Never commit real plans or
+- Keep secrets and credentials out of uploaded pages. Never commit real ahas or
   private documents to the source repository.
 - Updates replace content in place and preserve visibility:
 
   ```sh
-  plans update <id> ./page.html [--if-match <etag>]
+  aha update <id> ./page.html [--if-match <etag>]
   ```
 
-- Read back with `plans read <id> [--output out.html]`; list with
-  `plans list [--public] [--json]`.
-- Configure via `--endpoint`/`PLANS_ENDPOINT` (default
-  `https://plans.oox.sh`; loopback `http:` only for development) and
-  `--token`/`PLANS_OWNER_TOKEN`. On split-DNS tailnets, set the endpoint
+- Read back with `aha read <id> [--output out.html]`; list with
+  `aha list [--public] [--json]`.
+- Configure via `--endpoint`/`AHA_ENDPOINT` (default
+  `https://aha.oox.sh`; loopback `http:` only for development) and
+  `--token`/`AHA_OWNER_TOKEN`. On split-DNS tailnets, set the endpoint
   to the public deployment alias (the gateway at the default URL rejects
-  `/api/*`); share links still use `PLANS_PUBLIC_URL`
-  (default `https://plans.oox.sh`).
+  `/api/*`); share links still use `AHA_PUBLIC_URL`
+  (default `https://aha.oox.sh`).

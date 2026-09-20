@@ -5,8 +5,8 @@ import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 
 import { MAX_HTML_BYTES } from '../lib/html-limits.js'
-import { handlePlansRequest } from '../lib/http.js'
-import { createPlansServer } from '../server/node-adapter.js'
+import { handleAhaRequest } from '../lib/http.js'
+import { createAhaServer } from '../server/node-adapter.js'
 import { TEST_CONFIG, htmlBytes, makeTestContext, ownerAuth } from './helpers.js'
 import type { TestContext } from './helpers.js'
 
@@ -21,8 +21,8 @@ const CreatedPayload = Schema.Struct({
 })
 
 function createTestServer(ctx: TestContext): Server {
-  return createPlansServer((request) =>
-    handlePlansRequest(request, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+  return createAhaServer((request) =>
+    handleAhaRequest(request, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
   )
 }
 

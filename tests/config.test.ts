@@ -6,9 +6,9 @@ import { readConfig } from '../lib/config.js'
 
 function envWith(overrides: HeaderMap): EnvMap {
   return {
-    PLANS_OWNER_TOKEN: 'owner-token',
-    PLANS_PRIVATE_READ_TOKEN: 'private-token',
-    R2_BUCKET: 'plans-dev',
+    AHA_OWNER_TOKEN: 'owner-token',
+    AHA_PRIVATE_READ_TOKEN: 'private-token',
+    R2_BUCKET: 'aha-dev',
     R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
     R2_ACCESS_KEY_ID: 'key-id',
     R2_SECRET_ACCESS_KEY: 'secret',
@@ -21,21 +21,21 @@ describe('config', () => {
     Effect.gen(function* () {
       const config = yield* readConfig(envWith({}))
 
-      expect(config.bucket).toBe('plans-dev')
+      expect(config.bucket).toBe('aha-dev')
       expect(config.region).toBe('auto')
-      expect(config.publicUrl).toBe('https://plans.oox.sh')
+      expect(config.publicUrl).toBe('https://aha.oox.sh')
     })
   )
 
   it.effect('reads and validates the canonical public url', () =>
     Effect.gen(function* () {
       const custom = yield* readConfig(
-        envWith({ PLANS_PUBLIC_URL: 'https://cdn.example.com/share/' })
+        envWith({ AHA_PUBLIC_URL: 'https://cdn.example.com/share/' })
       )
 
       expect(custom.publicUrl).toBe('https://cdn.example.com/share')
 
-      const invalid = yield* Effect.flip(readConfig(envWith({ PLANS_PUBLIC_URL: 'ftp://x' })))
+      const invalid = yield* Effect.flip(readConfig(envWith({ AHA_PUBLIC_URL: 'ftp://x' })))
 
       expect(Predicate.isTagged(invalid, 'InvalidConfig')).toBe(true)
     })
@@ -44,7 +44,7 @@ describe('config', () => {
   it.effect('rejects missing owner token', () =>
     Effect.gen(function* () {
       const env = envWith({})
-      delete env['PLANS_OWNER_TOKEN']
+      delete env['AHA_OWNER_TOKEN']
       const failure = yield* Effect.flip(readConfig(env))
 
       expect(Predicate.isTagged(failure, 'InvalidConfig')).toBe(true)
@@ -54,7 +54,7 @@ describe('config', () => {
   it.effect('rejects identical owner and private-read tokens', () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
-        readConfig(envWith({ PLANS_PRIVATE_READ_TOKEN: 'owner-token' }))
+        readConfig(envWith({ AHA_PRIVATE_READ_TOKEN: 'owner-token' }))
       )
 
       expect(Predicate.isTagged(failure, 'InvalidConfig')).toBe(true)

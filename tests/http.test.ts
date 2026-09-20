@@ -2,8 +2,8 @@ import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 
 import type { HeaderMap } from '../lib/headers.js'
-import { handlePlansRequest } from '../lib/http.js'
-import type { PlansRequest } from '../lib/http.js'
+import { handleAhaRequest } from '../lib/http.js'
+import type { AhaRequest } from '../lib/http.js'
 import {
   TEST_CONFIG,
   bytesToString,
@@ -15,7 +15,7 @@ import {
 
 const SAMPLE = '<!doctype html><html><body><p>synthetic http</p></body></html>'
 
-function get(url: string, authorization: string | null): PlansRequest {
+function get(url: string, authorization: string | null): AhaRequest {
   const headers: HeaderMap = {}
 
   if (authorization !== null) {
@@ -25,7 +25,7 @@ function get(url: string, authorization: string | null): PlansRequest {
   return { method: 'GET', url, headers, body: null }
 }
 
-function postDocument(body: Uint8Array, authorization: string | null): PlansRequest {
+function postDocument(body: Uint8Array, authorization: string | null): AhaRequest {
   const headers: HeaderMap = { 'content-type': 'text/html' }
 
   if (authorization !== null) {
@@ -64,17 +64,17 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const root = yield* handlePlansRequest(get('/', null), TEST_CONFIG).pipe(
+      const root = yield* handleAhaRequest(get('/', null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
-      const health = yield* handlePlansRequest(get('/api/health', null), TEST_CONFIG).pipe(
+      const health = yield* handleAhaRequest(get('/api/health', null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
       expect(root.status).toBe(200)
       expect(health.status).toBe(200)
-      expect(responseText(root).includes('plans')).toBe(true)
+      expect(responseText(root).includes('aha')).toBe(true)
       expect(responseText(health).includes('true')).toBe(true)
       expect(root.headers['cache-control']).toBe('no-store')
       expect(health.headers['x-content-type-options']).toBe('nosniff')
@@ -86,7 +86,7 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const created = yield* handlePlansRequest(
+      const created = yield* handleAhaRequest(
         postDocument(htmlBytes(SAMPLE), ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -96,15 +96,15 @@ describe('http boundary', () => {
       const id = yield* createdId(responseText(created))
       const shareUrl = yield* createdUrl(responseText(created))
 
-      expect(shareUrl).toBe(`https://plans.oox.sh/${id}`)
+      expect(shareUrl).toBe(`https://aha.oox.sh/${id}`)
 
-      const before = yield* handlePlansRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+      const before = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
       expect(before.status).toBe(404)
 
-      const publish = yield* handlePlansRequest(
+      const publish = yield* handleAhaRequest(
         {
           method: 'POST',
           url: `/api/documents/${id}/publish`,
@@ -116,7 +116,7 @@ describe('http boundary', () => {
 
       expect(publish.status).toBe(200)
 
-      const after = yield* handlePlansRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+      const after = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
@@ -142,7 +142,7 @@ describe('http boundary', () => {
         expect(bytesToString(afterBody)).toBe(SAMPLE)
       }
 
-      const unpublish = yield* handlePlansRequest(
+      const unpublish = yield* handleAhaRequest(
         {
           method: 'POST',
           url: `/api/documents/${id}/unpublish`,
@@ -154,7 +154,7 @@ describe('http boundary', () => {
 
       expect(unpublish.status).toBe(200)
 
-      const closed = yield* handlePlansRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+      const closed = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
@@ -166,7 +166,7 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const created = yield* handlePlansRequest(
+      const created = yield* handleAhaRequest(
         postDocument(htmlBytes(SAMPLE), ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -175,7 +175,7 @@ describe('http boundary', () => {
 
       ctx.state.failAll = true
 
-      const denied = yield* handlePlansRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+      const denied = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
@@ -187,14 +187,14 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const created = yield* handlePlansRequest(
+      const created = yield* handleAhaRequest(
         postDocument(htmlBytes(SAMPLE), ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
       const id = yield* createdId(responseText(created))
 
-      yield* handlePlansRequest(
+      yield* handleAhaRequest(
         {
           method: 'POST',
           url: `/api/documents/${id}/publish`,
@@ -204,7 +204,7 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const head = yield* handlePlansRequest(
+      const head = yield* handleAhaRequest(
         { method: 'HEAD', url: `/${id}`, headers: {}, body: null },
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -214,14 +214,14 @@ describe('http boundary', () => {
 
       const etag = head.headers['etag'] ?? ''
 
-      const notModified = yield* handlePlansRequest(
+      const notModified = yield* handleAhaRequest(
         { method: 'GET', url: `/${id}`, headers: { 'if-none-match': etag }, body: null },
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
       expect(notModified.status).toBe(304)
 
-      const ranged = yield* handlePlansRequest(
+      const ranged = yield* handleAhaRequest(
         { method: 'GET', url: `/${id}`, headers: { range: 'bytes=0-10' }, body: null },
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -236,7 +236,7 @@ describe('http boundary', () => {
         expect(bytesToString(rangedBody)).toBe(SAMPLE)
       }
 
-      yield* handlePlansRequest(
+      yield* handleAhaRequest(
         {
           method: 'POST',
           url: `/api/documents/${id}/unpublish`,
@@ -246,7 +246,7 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const variants: ReadonlyArray<Pick<PlansRequest, 'method' | 'headers'>> = [
+      const variants: ReadonlyArray<Pick<AhaRequest, 'method' | 'headers'>> = [
         { method: 'GET', headers: {} },
         { method: 'HEAD', headers: {} },
         { method: 'GET', headers: { 'if-none-match': etag } },
@@ -256,7 +256,7 @@ describe('http boundary', () => {
 
       for (const url of [`/${id}`, `/api/documents/${id}`]) {
         for (const variant of variants) {
-          const denied = yield* handlePlansRequest(
+          const denied = yield* handleAhaRequest(
             { method: variant.method, headers: variant.headers, url, body: null },
             TEST_CONFIG
           ).pipe(Effect.provide(ctx.layer))
@@ -266,7 +266,7 @@ describe('http boundary', () => {
           expect(responseText(denied)).not.toContain(SAMPLE)
         }
 
-        const privateRead = yield* handlePlansRequest(get(url, privateAuth()), TEST_CONFIG).pipe(
+        const privateRead = yield* handleAhaRequest(get(url, privateAuth()), TEST_CONFIG).pipe(
           Effect.provide(ctx.layer)
         )
 
@@ -290,19 +290,19 @@ describe('http boundary', () => {
       ]
 
       for (const path of paths) {
-        const response = yield* handlePlansRequest(get(path, ownerAuth()), TEST_CONFIG).pipe(
+        const response = yield* handleAhaRequest(get(path, ownerAuth()), TEST_CONFIG).pipe(
           Effect.provide(ctx.layer)
         )
 
         expect(response.status === 404 || response.status === 400).toBe(true)
       }
 
-      const hostStyle = yield* handlePlansRequest(get('//other-host', null), TEST_CONFIG).pipe(
+      const hostStyle = yield* handleAhaRequest(get('//other-host', null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
       expect(hostStyle.status).toBe(200)
-      expect(responseText(hostStyle)).toBe('plans')
+      expect(responseText(hostStyle)).toBe('aha')
     })
   )
 
@@ -310,7 +310,7 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const lying: PlansRequest = {
+      const lying: AhaRequest = {
         method: 'POST',
         url: '/api/documents',
         headers: {
@@ -321,11 +321,11 @@ describe('http boundary', () => {
         body: htmlBytes(SAMPLE)
       }
 
-      const rejected = yield* handlePlansRequest(lying, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+      const rejected = yield* handleAhaRequest(lying, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
 
       expect(rejected.status).toBe(413)
 
-      const wrongType = yield* handlePlansRequest(
+      const wrongType = yield* handleAhaRequest(
         {
           method: 'POST',
           url: '/api/documents',
@@ -337,14 +337,14 @@ describe('http boundary', () => {
 
       expect(wrongType.status).toBe(415)
 
-      const missing: PlansRequest = {
+      const missing: AhaRequest = {
         method: 'POST',
         url: '/api/documents',
         headers: { 'content-type': 'text/html' },
         body: htmlBytes(SAMPLE)
       }
 
-      const anonymous = yield* handlePlansRequest(missing, TEST_CONFIG).pipe(
+      const anonymous = yield* handleAhaRequest(missing, TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
@@ -356,35 +356,34 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const created = yield* handlePlansRequest(
+      const created = yield* handleAhaRequest(
         postDocument(htmlBytes(SAMPLE), ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
       const id = yield* createdId(responseText(created))
 
-      const privateRead = yield* handlePlansRequest(
+      const privateRead = yield* handleAhaRequest(
         get(`/api/documents/${id}`, privateAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
       expect(privateRead.status).toBe(200)
 
-      const anonymousApi = yield* handlePlansRequest(
+      const anonymousApi = yield* handleAhaRequest(
         get(`/api/documents/${id}`, null),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
       expect(anonymousApi.status).toBe(401)
 
-      const list = yield* handlePlansRequest(
-        get('/api/documents', privateAuth()),
-        TEST_CONFIG
-      ).pipe(Effect.provide(ctx.layer))
+      const list = yield* handleAhaRequest(get('/api/documents', privateAuth()), TEST_CONFIG).pipe(
+        Effect.provide(ctx.layer)
+      )
 
       expect(list.status).toBe(401)
 
-      const ownerList = yield* handlePlansRequest(
+      const ownerList = yield* handleAhaRequest(
         get('/api/documents', ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -397,7 +396,7 @@ describe('http boundary', () => {
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
-      const created = yield* handlePlansRequest(
+      const created = yield* handleAhaRequest(
         postDocument(htmlBytes(SAMPLE), ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -405,7 +404,7 @@ describe('http boundary', () => {
       const id = yield* createdId(responseText(created))
       const revised = '<!doctype html><html><body><p>v2</p></body></html>'
 
-      yield* handlePlansRequest(
+      yield* handleAhaRequest(
         {
           method: 'POST',
           url: `/api/documents/${id}/publish`,
@@ -415,7 +414,7 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const updated = yield* handlePlansRequest(
+      const updated = yield* handleAhaRequest(
         {
           method: 'PUT',
           url: `/api/documents/${id}`,
@@ -427,13 +426,13 @@ describe('http boundary', () => {
 
       expect(updated.status).toBe(200)
 
-      const open = yield* handlePlansRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+      const open = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
       )
 
       expect(open.status).toBe(200)
 
-      const blocked = yield* handlePlansRequest(
+      const blocked = yield* handleAhaRequest(
         {
           method: 'DELETE',
           url: `/api/documents/${id}`,

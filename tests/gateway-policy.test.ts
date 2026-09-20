@@ -24,7 +24,7 @@ describe('gateway policy', () => {
     expect(isAllowedGatewayRequest('GET', '/')).toBe(false)
     expect(isAllowedGatewayRequest('GET', '/api/health')).toBe(false)
     expect(isAllowedGatewayRequest('GET', `/${VALID}/publish`)).toBe(false)
-    expect(isAllowedGatewayRequest('GET', `https://plans.oox.sh/${VALID}`)).toBe(false)
+    expect(isAllowedGatewayRequest('GET', `https://aha.oox.sh/${VALID}`)).toBe(false)
   })
 
   it('rejects encodings, traversal and malformed ids', () => {

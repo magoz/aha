@@ -244,8 +244,8 @@ export const noBroadCatchCauseRule = defineRule({
   }
 })
 
-const plansPolicyPlugin = eslintCompatPlugin({
-  meta: { name: 'plans-policy' },
+const ahaPolicyPlugin = eslintCompatPlugin({
+  meta: { name: 'aha-policy' },
   rules: {
     'no-any': noAnyRule,
     'no-non-null-assertion': noNonNullAssertionRule,
@@ -256,4 +256,4 @@ const plansPolicyPlugin = eslintCompatPlugin({
   }
 })
 
-export default plansPolicyPlugin
+export default ahaPolicyPlugin

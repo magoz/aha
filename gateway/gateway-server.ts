@@ -5,12 +5,12 @@ import { gatewayDocumentId, isAllowedGatewayRequest } from './gateway-policy.js'
 import type { HeaderMap } from '../lib/headers.js'
 import { withSecurityHeaders } from '../lib/security-headers.js'
 
-const UPSTREAM_ENV = 'PLANS_UPSTREAM_URL'
+const UPSTREAM_ENV = 'AHA_UPSTREAM_URL'
 
-const TOKEN_ENV = 'PLANS_PRIVATE_READ_TOKEN'
+const TOKEN_ENV = 'AHA_PRIVATE_READ_TOKEN'
 
 function insecureLoopbackAllowed(): boolean {
-  return process.env['PLANS_GATEWAY_INSECURE_LOOPBACK'] === '1'
+  return process.env['AHA_GATEWAY_INSECURE_LOOPBACK'] === '1'
 }
 
 function isLoopbackHttp(raw: string): boolean {
@@ -200,7 +200,7 @@ export function startPrivateGateway(port: number): Server {
   })
 
   server.listen(port, '127.0.0.1', () => {
-    process.stdout.write(`plans private gateway on http://127.0.0.1:${String(port)}\n`)
+    process.stdout.write(`aha private gateway on http://127.0.0.1:${String(port)}\n`)
   })
 
   return server

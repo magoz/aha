@@ -6,7 +6,7 @@ import type { PlanId } from '../lib/plan-id.js'
 import type {
   DocumentHead,
   ListEntry,
-  PlansStorage,
+  AhaStorage,
   PutOptions,
   StoredDocument
 } from '../lib/storage.js'
@@ -38,7 +38,7 @@ function normalizeEtag(etag: string): string {
   return withoutWeak
 }
 
-export function createFakeStorage(state: FakeStorageState): PlansStorage {
+export function createFakeStorage(state: FakeStorageState): AhaStorage {
   const checkFailed = <A>(
     operation: string,
     run: () => A

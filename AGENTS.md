@@ -1,11 +1,11 @@
-# Plans
+# Aha
 
 Personal HTML publishing for agents. Public repository: never commit credentials, private documents, machine-specific configuration, or infrastructure state.
 
 ## Architecture
 
 - TypeScript + Effect, no Next.js or React. Vercel handles public HTTP; private Cloudflare R2 stores documents and publication markers.
-- `plans/<id>.html` stores the current HTML. Empty `public/<id>` object means public. Missing marker means private. The bucket and all direct access domains stay private/disabled.
+- `aha/<id>.html` stores the current HTML. Empty `public/<id>` object means public. Missing marker means private. The bucket and all direct access domains stay private/disabled.
 - Every anonymous GET and HEAD checks publication. Storage failures fail closed. No caching of HTML or access decisions. Updates preserve publication state.
 - Administrative bearer credential permits mutations and listing. Separate private-read credential permits document reads only, for a tailnet-only gateway. Never infer private access from client IP, Host, forwarded headers, or DNS alone.
 - Same hostname via split DNS is an operational setup: private gateway on the tailnet; Vercel on public DNS. The gateway must be constrained to a fixed HTTPS upstream and safe document-read paths.
@@ -35,4 +35,4 @@ Provide `pnpm verify`: format check, typecheck, lint, tests and build. Test abse
 
 ## Git
 
-Use the configured Git identity. No identity overrides. Never stage env files, Alchemy state, Vercel metadata, generated artifacts or real plans.
+Use the configured Git identity. No identity overrides. Never stage env files, Alchemy state, Vercel metadata, generated artifacts or real ahas.

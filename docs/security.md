@@ -1,6 +1,6 @@
 # Security model
 
-- Private by default. `plans/<id>.html` holds content; an empty
+- Private by default. `aha/<id>.html` holds content; an empty
   `public/<id>` object marks a document public. Missing marker means private.
 - Anonymous `GET`/`HEAD /<id>` succeed only when the marker is present.
   Marker reads happen before content reads; any storage error denies

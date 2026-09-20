@@ -18,7 +18,7 @@ export default defineConfig({
   jsPlugins: [
     { name: 'anti-slop', specifier: './anti-slop/index.ts' },
     { name: 'anti-slop-effect', specifier: './anti-slop/effect/index.ts' },
-    { name: 'plans-policy', specifier: './plans-policy/index.ts' }
+    { name: 'aha-policy', specifier: './aha-policy/index.ts' }
   ],
   rules: {
     'oxc/no-accumulating-spread': 'error',
@@ -45,11 +45,11 @@ export default defineConfig({
     'anti-slop-effect/no-manual-tagged-construction': 'error',
     'anti-slop-effect/no-service-constructor-imports': 'error',
     'anti-slop-effect/prefer-effect-match': 'error',
-    'plans-policy/no-any': 'error',
-    'plans-policy/no-non-null-assertion': 'error',
-    'plans-policy/no-unsafe-assertion': 'error',
-    'plans-policy/no-sync-schema-codec': 'error',
-    'plans-policy/no-disable-validation': 'error',
-    'plans-policy/no-broad-catch-cause': 'error'
+    'aha-policy/no-any': 'error',
+    'aha-policy/no-non-null-assertion': 'error',
+    'aha-policy/no-unsafe-assertion': 'error',
+    'aha-policy/no-sync-schema-codec': 'error',
+    'aha-policy/no-disable-validation': 'error',
+    'aha-policy/no-broad-catch-cause': 'error'
   }
 })

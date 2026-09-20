@@ -1,4 +1,4 @@
-# plans infrastructure (Alchemy)
+# aha infrastructure (Alchemy)
 
 Operator-run Cloudflare R2 provisioning. This package is intentionally
 separate from the application: it has its own dependencies
@@ -16,8 +16,8 @@ imports Alchemy.
 
 ## What it provisions
 
-- One private R2 bucket per stage: `plans-prod` for stage `prod`,
-  `plans-dev` otherwise. No custom domains, no public access.
+- One private R2 bucket per stage: `aha-prod` for stage `prod`,
+  `aha-dev` otherwise. No custom domains, no public access.
 - An account-owned `${bucketName}-service` API token with only R2 Bucket Item
   Read and Write permission for that stage's bucket. Its secret is kept in
   private Alchemy state, not printed as a stack output. Credential creation
@@ -60,7 +60,7 @@ credential files owner-readable only. Local `.alchemy/` artifacts are git-ignore
 Cloudflare's S3 access key ID is the account token's `tokenId`; the secret access
 key is the SHA-256 hex digest of its token `value`. Store these as production
 secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` in Vercel. These are not the
-Cloudflare provisioning token or the Plans CLI owner token.
+Cloudflare provisioning token or the Aha CLI owner token.
 
 The resource retains its secret in private Alchemy state, so a no-op deploy does
 not rotate it. **`alchemy state get` can expose plaintext secrets** despite the

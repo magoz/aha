@@ -1,4 +1,4 @@
-// Verifies that vendored anti-slop + local plans-policy rules actually fire.
+// Verifies that vendored anti-slop + local aha-policy rules actually fire.
 // Run via `pnpm lint:fixtures`. Exits non-zero with a diagnostic if expectations break.
 import { execFileSync } from 'node:child_process'
 
@@ -49,19 +49,15 @@ if (bad.status === 0) {
   process.exit(1)
 }
 
-expectMatch(bad.output, /plans-policy\(no-any\)/, 'plans-policy/no-any')
+expectMatch(bad.output, /aha-policy\(no-any\)/, 'aha-policy/no-any')
 
 expectMatch(
   bad.output,
-  /plans-policy\(no-unsafe-assertion\)|anti-slop\(no-chained-type-assertions\)/,
+  /aha-policy\(no-unsafe-assertion\)|anti-slop\(no-chained-type-assertions\)/,
   'assertion rule'
 )
 
-expectMatch(
-  bad.output,
-  /plans-policy\(no-non-null-assertion\)/,
-  'plans-policy/no-non-null-assertion'
-)
+expectMatch(bad.output, /aha-policy\(no-non-null-assertion\)/, 'aha-policy/no-non-null-assertion')
 
 const badEffect = run([
   '--config',
@@ -76,20 +72,20 @@ if (badEffect.status === 0) {
 
 expectMatch(
   badEffect.output,
-  /plans-policy\(no-broad-catch-cause\)/,
-  'plans-policy/no-broad-catch-cause'
+  /aha-policy\(no-broad-catch-cause\)/,
+  'aha-policy/no-broad-catch-cause'
 )
 
 expectMatch(
   badEffect.output,
-  /plans-policy\(no-sync-schema-codec\)/,
-  'plans-policy/no-sync-schema-codec'
+  /aha-policy\(no-sync-schema-codec\)/,
+  'aha-policy/no-sync-schema-codec'
 )
 
 expectMatch(
   badEffect.output,
-  /plans-policy\(no-disable-validation\)/,
-  'plans-policy/no-disable-validation'
+  /aha-policy\(no-disable-validation\)/,
+  'aha-policy/no-disable-validation'
 )
 
 console.log('lint fixtures verified')

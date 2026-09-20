@@ -3,7 +3,7 @@ import { Context, Effect, Layer } from 'effect'
 import { InvalidConfig } from './errors.js'
 import type { EnvMap } from './headers.js'
 
-export const DEFAULT_PUBLIC_URL = 'https://plans.oox.sh'
+export const DEFAULT_PUBLIC_URL = 'https://aha.oox.sh'
 
 export interface ServiceConfig {
   readonly ownerToken: string
@@ -48,21 +48,21 @@ function normalizeBaseUrl(raw: string): string | null {
 
 export function readConfig(env: EnvMap): Effect.Effect<ServiceConfig, InvalidConfig> {
   return Effect.suspend(() => {
-    const ownerToken = requiredEnv('PLANS_OWNER_TOKEN', env)
-    const privateReadToken = requiredEnv('PLANS_PRIVATE_READ_TOKEN', env)
+    const ownerToken = requiredEnv('AHA_OWNER_TOKEN', env)
+    const privateReadToken = requiredEnv('AHA_PRIVATE_READ_TOKEN', env)
     const bucket = requiredEnv('R2_BUCKET', env)
     const endpoint = requiredEnv('R2_ENDPOINT', env)
     const accessKeyId = requiredEnv('R2_ACCESS_KEY_ID', env)
     const secretAccessKey = requiredEnv('R2_SECRET_ACCESS_KEY', env)
     const region = requiredEnv('R2_REGION', env) ?? 'auto'
-    const publicUrl = normalizeBaseUrl(requiredEnv('PLANS_PUBLIC_URL', env) ?? DEFAULT_PUBLIC_URL)
+    const publicUrl = normalizeBaseUrl(requiredEnv('AHA_PUBLIC_URL', env) ?? DEFAULT_PUBLIC_URL)
 
     if (ownerToken === null) {
-      return Effect.fail(new InvalidConfig({ detail: 'missing PLANS_OWNER_TOKEN' }))
+      return Effect.fail(new InvalidConfig({ detail: 'missing AHA_OWNER_TOKEN' }))
     }
 
     if (privateReadToken === null) {
-      return Effect.fail(new InvalidConfig({ detail: 'missing PLANS_PRIVATE_READ_TOKEN' }))
+      return Effect.fail(new InvalidConfig({ detail: 'missing AHA_PRIVATE_READ_TOKEN' }))
     }
 
     if (ownerToken === privateReadToken) {
@@ -86,7 +86,7 @@ export function readConfig(env: EnvMap): Effect.Effect<ServiceConfig, InvalidCon
     }
 
     if (publicUrl === null) {
-      return Effect.fail(new InvalidConfig({ detail: 'invalid PLANS_PUBLIC_URL' }))
+      return Effect.fail(new InvalidConfig({ detail: 'invalid AHA_PUBLIC_URL' }))
     }
 
     return Effect.succeed({

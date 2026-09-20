@@ -7,7 +7,7 @@ import { Effect, Predicate } from 'effect'
 
 import { parseCliArgs, validateEndpoint } from '../cli/parser.js'
 
-const TOKEN_ENV = { PLANS_OWNER_TOKEN: 'owner-token-for-tests' }
+const TOKEN_ENV = { AHA_OWNER_TOKEN: 'owner-token-for-tests' }
 
 describe('cli parser', () => {
   it.effect('parses upload with defaults', () =>
@@ -21,8 +21,8 @@ describe('cli parser', () => {
       }
 
       expect(request.file).toBe('./page.html')
-      expect(request.endpoint).toBe('https://plans.oox.sh')
-      expect(request.publicUrl).toBe('https://plans.oox.sh')
+      expect(request.endpoint).toBe('https://aha.oox.sh')
+      expect(request.publicUrl).toBe('https://aha.oox.sh')
       expect(request.token).toBe('owner-token-for-tests')
     })
   )
@@ -30,11 +30,11 @@ describe('cli parser', () => {
   it.effect('separates share urls from the api endpoint', () =>
     Effect.gen(function* () {
       const id = 'AAAAAAAAAAAAAAAAAAAAAA'
-      const alias = 'https://plans-private-alias.example.com'
+      const alias = 'https://aha-private-alias.example.com'
 
       const publish = yield* parseCliArgs(['publish', id, '--endpoint', alias], {
         ...TOKEN_ENV,
-        PLANS_PUBLIC_URL: 'https://plans.oox.sh/'
+        AHA_PUBLIC_URL: 'https://aha.oox.sh/'
       })
 
       if (publish.command !== 'publish') {
@@ -44,7 +44,7 @@ describe('cli parser', () => {
       }
 
       expect(publish.endpoint).toBe(alias)
-      expect(publish.publicUrl).toBe('https://plans.oox.sh')
+      expect(publish.publicUrl).toBe('https://aha.oox.sh')
 
       const flagged = yield* parseCliArgs(
         ['upload', './page.html', '--public-url', `${alias}/share/`],
@@ -110,18 +110,17 @@ describe('cli parser', () => {
   it.effect('reads tokens from a 0600 credentials file', () =>
     Effect.gen(function* () {
       const dir = yield* Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), 'plans-cli-')),
+        try: () => mkdtemp(join(tmpdir(), 'aha-cli-')),
         catch: () => new Error('mkdtemp failed')
       })
 
       try {
         const file = join(dir, 'credentials')
         yield* Effect.tryPromise({
-          try: () =>
-            writeFile(file, 'PLANS_OWNER_TOKEN=file-token\n').then(() => chmod(file, 0o600)),
+          try: () => writeFile(file, 'AHA_OWNER_TOKEN=file-token\n').then(() => chmod(file, 0o600)),
           catch: () => new Error('write failed')
         })
-        const request = yield* parseCliArgs(['list'], { PLANS_CREDENTIALS_FILE: file })
+        const request = yield* parseCliArgs(['list'], { AHA_CREDENTIALS_FILE: file })
 
         if (request.command !== 'list') {
           expect(false).toBe(true)
@@ -142,18 +141,17 @@ describe('cli parser', () => {
   it.effect('rejects credentials files with open permissions', () =>
     Effect.gen(function* () {
       const dir = yield* Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), 'plans-cli-')),
+        try: () => mkdtemp(join(tmpdir(), 'aha-cli-')),
         catch: () => new Error('mkdtemp failed')
       })
 
       try {
         const file = join(dir, 'credentials')
         yield* Effect.tryPromise({
-          try: () =>
-            writeFile(file, 'PLANS_OWNER_TOKEN=file-token\n').then(() => chmod(file, 0o644)),
+          try: () => writeFile(file, 'AHA_OWNER_TOKEN=file-token\n').then(() => chmod(file, 0o644)),
           catch: () => new Error('write failed')
         })
-        const failure = yield* Effect.flip(parseCliArgs(['list'], { PLANS_CREDENTIALS_FILE: file }))
+        const failure = yield* Effect.flip(parseCliArgs(['list'], { AHA_CREDENTIALS_FILE: file }))
 
         expect(Predicate.isTagged(failure, 'CliUsageError')).toBe(true)
       } finally {
@@ -167,15 +165,15 @@ describe('cli parser', () => {
 
   it.effect('requires a token and validates endpoints', () =>
     Effect.gen(function* () {
-      expect(homedir().startsWith(join(tmpdir(), 'plans-test-home-'))).toBe(true)
+      expect(homedir().startsWith(join(tmpdir(), 'aha-test-home-'))).toBe(true)
 
       const missing = yield* Effect.flip(parseCliArgs(['list'], {}))
 
       expect(Predicate.isTagged(missing, 'CliUsageError')).toBe(true)
 
-      const https = yield* validateEndpoint('https://plans.oox.sh')
+      const https = yield* validateEndpoint('https://aha.oox.sh')
 
-      expect(https).toBe('https://plans.oox.sh')
+      expect(https).toBe('https://aha.oox.sh')
 
       const loopback = yield* validateEndpoint('http://127.0.0.1:3939')
 

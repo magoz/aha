@@ -14,16 +14,16 @@ import { MAX_HTML_BYTES } from './html-limits.js'
 import { isPlanId } from './plan-id.js'
 import { withSecurityHeaders } from './security-headers.js'
 import type { HeaderMap } from './headers.js'
-import { PlansStorageTag } from './storage.js'
+import { AhaStorageTag } from './storage.js'
 
-export interface PlansRequest {
+export interface AhaRequest {
   readonly method: string
   readonly url: string
   readonly headers: Readonly<HeaderMap>
   readonly body: Uint8Array | null
 }
 
-export interface PlansResponse {
+export interface AhaResponse {
   readonly status: number
   readonly headers: HeaderMap
   readonly body: Uint8Array | null
@@ -46,7 +46,7 @@ function headerValue(headers: Readonly<HeaderMap>, name: string): string | null 
   return value
 }
 
-function jsonResponse(status: number, value: string): PlansResponse {
+function jsonResponse(status: number, value: string): AhaResponse {
   return {
     status,
     headers: withSecurityHeaders({ 'content-type': 'application/json; charset=utf-8' }),
@@ -54,7 +54,7 @@ function jsonResponse(status: number, value: string): PlansResponse {
   }
 }
 
-function textResponse(status: number, value: string): PlansResponse {
+function textResponse(status: number, value: string): AhaResponse {
   return {
     status,
     headers: withSecurityHeaders({ 'content-type': 'text/plain; charset=utf-8' }),
@@ -217,10 +217,10 @@ function contentLengthHeader(headers: Readonly<HeaderMap>): number | null {
   return parsed
 }
 
-export function handlePlansRequest(
-  request: PlansRequest,
+export function handleAhaRequest(
+  request: AhaRequest,
   config: ServiceConfig
-): Effect.Effect<PlansResponse, never, PlansStorageTag> {
+): Effect.Effect<AhaResponse, never, AhaStorageTag> {
   const parsed = new URL(request.url, 'http://localhost')
   const parts = splitPath(parsed.pathname)
 
@@ -269,7 +269,7 @@ export function handlePlansRequest(
   return Effect.succeed(textResponse(404, 'not found'))
 }
 
-function handleRoot(method: string): PlansResponse {
+function handleRoot(method: string): AhaResponse {
   const upper = method.toUpperCase()
 
   if (upper !== 'GET' && upper !== 'HEAD') {
@@ -284,10 +284,10 @@ function handleRoot(method: string): PlansResponse {
     }
   }
 
-  return textResponse(200, 'plans')
+  return textResponse(200, 'aha')
 }
 
-function handleHealth(method: string): PlansResponse {
+function handleHealth(method: string): AhaResponse {
   const upper = method.toUpperCase()
 
   if (upper !== 'GET' && upper !== 'HEAD') {
@@ -306,10 +306,10 @@ function handleHealth(method: string): PlansResponse {
 }
 
 function handlePublicDocument(
-  request: PlansRequest,
+  request: AhaRequest,
   id: string | null,
   config: ServiceConfig
-): Effect.Effect<PlansResponse, never, PlansStorageTag> {
+): Effect.Effect<AhaResponse, never, AhaStorageTag> {
   const method = request.method.toUpperCase()
 
   if (id === null) {
@@ -355,10 +355,10 @@ function handlePublicDocument(
 }
 
 function handleDocumentCollection(
-  request: PlansRequest,
+  request: AhaRequest,
   parsed: URL,
   config: ServiceConfig
-): Effect.Effect<PlansResponse, never, PlansStorageTag> {
+): Effect.Effect<AhaResponse, never, AhaStorageTag> {
   const method = request.method.toUpperCase()
   const authorization = headerValue(request.headers, 'authorization')
 
@@ -409,10 +409,10 @@ function handleDocumentCollection(
 }
 
 function handleDocumentApi(
-  request: PlansRequest,
+  request: AhaRequest,
   id: string | null,
   config: ServiceConfig
-): Effect.Effect<PlansResponse, never, PlansStorageTag> {
+): Effect.Effect<AhaResponse, never, AhaStorageTag> {
   const method = request.method.toUpperCase()
 
   if (id === null) {
@@ -499,11 +499,11 @@ function handleDocumentApi(
 }
 
 function handleVisibility(
-  request: PlansRequest,
+  request: AhaRequest,
   id: string | null,
   publish: boolean,
   config: ServiceConfig
-): Effect.Effect<PlansResponse, never, PlansStorageTag> {
+): Effect.Effect<AhaResponse, never, AhaStorageTag> {
   const method = request.method.toUpperCase()
 
   if (id === null) {
