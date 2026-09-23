@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 
 import {
-  findBlocks,
+  findRootBlocks,
   readBlockWidth,
   spliceBlocks,
   stripGeneratedInner,
@@ -22,6 +22,16 @@ import { ClientBundleStore } from './services/client-bundle-store.js'
  */
 
 export type BuildError = UnknownComponentError | BlockDecodeError | ClientBundleMissingError
+
+/** Nesting cap for blocks inside markup components (scenarios holding
+ * charts). Deep enough for real pages, shallow enough to stop a
+ * self-referencing template from looping forever. */
+export const MAX_NEST_DEPTH = 4
+
+interface RenderedTree {
+  readonly html: string
+  readonly used: ReadonlyArray<string>
+}
 
 function parseJsonPayload(
   block: FoundBlock,
@@ -65,16 +75,16 @@ function parseJsonPayload(
 
 function renderFoundBlock(
   block: FoundBlock,
-  index: number
-): Effect.Effect<string, UnknownComponentError | BlockDecodeError> {
+  index: number,
+  idPrefix: string,
+  depth: number
+): Effect.Effect<RenderedTree, UnknownComponentError | BlockDecodeError> {
   return Effect.gen(function* () {
     const component = findCatalogComponent(block.name)
 
     if (component === null) {
       return yield* Effect.fail(new UnknownComponentError({ name: block.name }))
     }
-
-    const idPrefix = `aha-${String(index)}-${component.name}`
 
     if (block.kind === 'json') {
       if (component.renderJson === null) {
@@ -99,8 +109,9 @@ function renderFoundBlock(
       })
 
       const clean = stripGeneratedInner(block.inner)
+      const html = replaceJsonInner(block, clean, rendered, component.name)
 
-      return replaceJsonInner(block, clean, rendered, component.name)
+      return { html, used: [component.name] }
     }
 
     if (component.renderMarkup === null) {
@@ -114,12 +125,69 @@ function renderFoundBlock(
       )
     }
 
-    return yield* component.renderMarkup({
+    // Nested blocks (a chart inside a scenarios section) are built in the
+    // author's inner HTML before the markup renderer sees it, so the
+    // renderer's own wrapper is never rescanned and rebuilds stay stable.
+    let innerHtml = block.inner
+    let nestedUsed: ReadonlyArray<string> = []
+
+    if (depth < MAX_NEST_DEPTH) {
+      const nested = yield* renderBlockTree(block.inner, `${idPrefix}-in`, depth + 1)
+      innerHtml = nested.html
+      nestedUsed = nested.used
+    }
+
+    const rendered = yield* component.renderMarkup({
       blockIndex: index,
       idPrefix,
       attributes: block.attributes,
-      innerHtml: block.inner
+      innerHtml
     })
+
+    return { html: rendered, used: [component.name, ...nestedUsed] }
+  })
+}
+
+/** Render every root block in `source`, recursing into markup output so
+ * nested blocks (charts inside scenarios) are built and idempotent. */
+function renderBlockTree(
+  source: string,
+  prefix: string,
+  depth: number
+): Effect.Effect<RenderedTree, UnknownComponentError | BlockDecodeError> {
+  return Effect.gen(function* () {
+    const blocks = findRootBlocks(source)
+
+    const rendered = yield* Effect.forEach(blocks, (block, index) =>
+      renderFoundBlock(block, index, `${prefix}-${String(index)}-${block.name}`, depth)
+    )
+
+    const html = spliceBlocks(
+      source,
+      blocks,
+      rendered.map((entry) => entry.html)
+    )
+
+    const used: Array<string> = []
+
+    for (const entry of rendered) {
+      for (const name of entry.used) {
+        let seen = false
+
+        for (const known of used) {
+          if (known === name) {
+            seen = true
+            break
+          }
+        }
+
+        if (!seen) {
+          used.push(name)
+        }
+      }
+    }
+
+    return { html, used }
   })
 }
 
@@ -186,47 +254,22 @@ function insertAssets(source: string, css: string, js: string): string {
   return `${source}${block}`
 }
 
-function usedComponentNames(blocks: ReadonlyArray<FoundBlock>): ReadonlyArray<string> {
-  const out: Array<string> = []
-
-  for (const block of blocks) {
-    let seen = false
-
-    for (const known of out) {
-      if (known === block.name) {
-        seen = true
-        break
-      }
-    }
-
-    if (!seen) {
-      out.push(block.name)
-    }
-  }
-
-  return out
-}
-
 export function buildPage(source: string): Effect.Effect<string, BuildError, ClientBundleStore> {
   return Effect.gen(function* () {
     const base = stripPageAssets(source)
-    const blocks = findBlocks(base)
+    const tree = yield* renderBlockTree(base, 'aha', 0)
+    const merged = tree.html
 
-    const rendered = yield* Effect.forEach(blocks, (block, index) => renderFoundBlock(block, index))
-
-    const merged = spliceBlocks(base, blocks, rendered)
-
-    if (blocks.length === 0) {
+    if (tree.used.length === 0) {
       return merged
     }
 
-    const used = usedComponentNames(blocks)
     const store = yield* ClientBundleStore
 
     let css = ''
     let js = ''
 
-    for (const name of used) {
+    for (const name of tree.used) {
       const component = findCatalogComponent(name)
 
       if (component === null) {

@@ -1,0 +1,25 @@
+/**
+ * Comparison-matrix styles. The criterion column sticks inside the
+ * horizontal scroll wrapper; the recommended option takes the accent.
+ * Marks read as glyphs plus visually-hidden words, never colour alone.
+ */
+
+export const COMPARISON_MATRIX_CSS = `
+.aha-matrix { max-width: 100%; }
+.aha-matrix .tw { overflow-x: auto; border: 1px solid var(--rule); }
+.aha-matrix .aha-title { font-family: var(--mono); font-size: var(--t-sm); margin: 0 0 0.5rem; }
+.aha-matrix table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: var(--t-sm); line-height: 1.5; }
+.aha-matrix th, .aha-matrix td { text-align: left; vertical-align: top; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--hair); overflow-wrap: normal; word-break: normal; }
+.aha-matrix thead th { font-size: var(--t-xs); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.aha-matrix thead th.rec { color: var(--accent); border-bottom: 2px solid var(--accent); }
+.aha-matrix tbody tr:last-child th, .aha-matrix tbody tr:last-child td { border-bottom: 0; }
+.aha-matrix tbody th[scope="row"] { position: sticky; left: 0; background: var(--paper); border-right: 1px solid var(--rule); font-weight: 500; white-space: nowrap; }
+.aha-matrix thead th:first-child { position: sticky; left: 0; background: var(--paper); border-right: 1px solid var(--rule); }
+.aha-matrix td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.aha-matrix td.num .unit { color: var(--muted); }
+.aha-matrix td.mk { white-space: nowrap; }
+.aha-matrix td.mk-yes { color: var(--ink); font-weight: 600; }
+.aha-matrix td.mk-part { color: var(--ink); }
+.aha-matrix td.mk-no { color: var(--muted); }
+.aha-matrix .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+`

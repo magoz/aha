@@ -18,6 +18,9 @@ export const DataTableColumnSchema = Schema.Struct({
   }),
   digits: Schema.optional(Schema.Number).annotate({
     description: 'Fixed fraction digits; omit for automatic precision.'
+  }),
+  priority: Schema.optional(Schema.Literals(['high', 'low'])).annotate({
+    description: 'Low-priority columns hide inside narrow containers; default high.'
   })
 })
 
@@ -35,7 +38,8 @@ export const DataTableSchema = Schema.Struct({
     description: 'Short title shown above the table.'
   }),
   columns: Schema.Array(DataTableColumnSchema).annotate({
-    description: 'Column definitions in display order.'
+    description:
+      'Column definitions in display order; a column may set priority low to hide inside narrow containers.'
   }),
   rows: Schema.Array(DataTableRowSchema).annotate({
     description: 'One array of cells per row, aligned with columns.'

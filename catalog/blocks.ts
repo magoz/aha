@@ -31,7 +31,7 @@ export interface MarkupBlock {
 
 export type FoundBlock = JsonBlock | MarkupBlock
 
-const BLOCK_TAGS: ReadonlyArray<string> = ['figure', 'aside', 'div', 'section']
+const BLOCK_TAGS: ReadonlyArray<string> = ['figure', 'aside', 'div', 'section', 'dl', 'ol', 'ul']
 
 function readTagName(source: string, at: number): string | null {
   let cursor = at + 1
@@ -141,10 +141,29 @@ function findCloseTag(source: string, tag: string, from: number): number {
   return -1
 }
 
+function findNestedBlockOpen(inner: string): number {
+  const pattern = /<(figure|aside|div|section|dl|ol|ul)[^>]*data-aha\s*=/g
+  const match = pattern.exec(inner)
+
+  if (match === null || match.index === undefined) {
+    return -1
+  }
+
+  return match.index
+}
+
 function findJsonScript(inner: string): { readonly text: string; readonly end: number } | null {
   const open = /<script[^>]*type="application\/json"[^>]*>/.exec(inner)
 
   if (open === null || open.index === undefined) {
+    return null
+  }
+
+  // A script inside a nested block (a chart's JSON inside a scenarios
+  // section) belongs to that block, not to this element.
+  const nestedAt = findNestedBlockOpen(inner)
+
+  if (nestedAt !== -1 && open.index > nestedAt) {
     return null
   }
 
@@ -272,6 +291,35 @@ export function findBlocks(source: string): ReadonlyArray<FoundBlock> {
     }
 
     cursor = end
+  }
+
+  return out
+}
+
+/** Top-level blocks only: nested blocks (e.g. a chart inside a scenarios
+ * section) are built recursively by build.ts, so the splicer never sees
+ * overlapping ranges. Pure function. */
+export function findRootBlocks(source: string): ReadonlyArray<FoundBlock> {
+  const all = findBlocks(source)
+  const out: Array<FoundBlock> = []
+
+  for (const candidate of all) {
+    let nested = false
+
+    for (const other of all) {
+      if (other === candidate) {
+        continue
+      }
+
+      if (other.start < candidate.start && candidate.end <= other.end) {
+        nested = true
+        break
+      }
+    }
+
+    if (!nested) {
+      out.push(candidate)
+    }
   }
 
   return out
