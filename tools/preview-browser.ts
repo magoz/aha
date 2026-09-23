@@ -952,10 +952,27 @@ const PROBE_EXPRESSION = `(async () => {
       if (svg === null) {
         continue
       }
-      const box = svg.getBoundingClientRect()
-      if (box.width <= 0 || box.height <= 0) {
+      const frame = svg.getBoundingClientRect()
+      if (frame.width <= 0 || frame.height <= 0) {
         continue
       }
+      // Union of the painted shapes: content can spill outside a too-short viewBox.
+      let top = frame.top
+      let bottom = frame.bottom
+      let left = frame.left
+      let right = frame.right
+      const shapes = svg.querySelectorAll('rect, path, line, polyline, circle, text')
+      for (let index = 0; index < shapes.length; index += 1) {
+        const r = shapes.item(index).getBoundingClientRect()
+        if (r.width <= 0 && r.height <= 0) {
+          continue
+        }
+        top = Math.min(top, r.top)
+        bottom = Math.max(bottom, r.bottom)
+        left = Math.min(left, r.left)
+        right = Math.max(right, r.right)
+      }
+      const box = { top, bottom, left, right }
       const followers = block.querySelectorAll('details.aha-values, figcaption')
       for (let index = 0; index < followers.length; index += 1) {
         const fol = followers.item(index)

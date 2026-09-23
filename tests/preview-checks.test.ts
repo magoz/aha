@@ -40,6 +40,16 @@ const OVERLAP_HTML =
   '<p>values</p></details></div></figure>' +
   '</body></html>'
 
+// The real proportion-bar bug: the viewBox was shorter than the bars, so the shapes
+// painted past the svg box (overflow visible) onto the following details.
+const SPILL_HTML =
+  '<!doctype html><html><head><title>spill</title><style>svg{display:block;width:100%;height:auto;overflow:visible}</style></head><body>' +
+  '<figure data-aha="test-spill"><div class="aha-chart">' +
+  '<svg viewBox="0 0 640 20"><rect x="8" y="10" width="624" height="40" /></svg>' +
+  '<details class="aha-values"><summary>Exact values</summary>' +
+  '<p>values</p></details></div></figure>' +
+  '</body></html>'
+
 const THEME_HTML =
   '<!doctype html><html><head><title>theme</title><style>' +
   'body{background:#fff;color:#111}' +
@@ -173,6 +183,25 @@ describe('preview overlap check', () => {
         expect(overlaps.length).toBeGreaterThan(0)
         expect(overlaps[0]?.message).toContain('test-overlap')
         expect(overlaps[0]?.message).toContain('details.aha-values')
+      }),
+    30000
+  )
+
+  it.effect(
+    'reports svg content that spills past a too-short viewBox',
+    () =>
+      Effect.gen(function* () {
+        const executable = yield* lookupChromiumOnPath()
+
+        if (executable === null) {
+          return
+        }
+
+        const run = yield* runOnHtml(SPILL_HTML, 'spill')
+        const overlaps = run.problems.filter((problem) => problem.kind === 'overlap')
+
+        expect(overlaps.length).toBeGreaterThan(0)
+        expect(overlaps[0]?.message).toContain('test-spill')
       }),
     30000
   )
