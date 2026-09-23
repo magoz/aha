@@ -5,6 +5,7 @@ import { buildPage } from '../catalog/build.js'
 import { findCatalogComponent } from '../catalog/categories.js'
 import { formatComponentDetail } from '../catalog/components.js'
 import { chartsComponents } from '../catalog/charts/registry.js'
+import { renderProportionBar } from '../catalog/charts/proportion-bar-render.js'
 import { ClientBundleStore } from '../catalog/services/client-bundle-store.js'
 
 const NEW_COMPONENTS = [
@@ -178,4 +179,43 @@ describe('phase-2 charts build', () => {
       }
     })
   )
+})
+
+describe('proportion-bar geometry', () => {
+  it('sizes a single bar with room for its outside labels', () => {
+    const html = renderProportionBar(
+      {
+        bars: [
+          {
+            parts: [
+              { name: 'home equity', value: 2875 },
+              { name: 'cash', value: 1690 },
+              { name: 'company', value: 4200 },
+              { name: 'ventures', value: 355 }
+            ]
+          }
+        ]
+      },
+      { idPrefix: 'pb', width: 720 }
+    )
+
+    const viewBox = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(html)
+    const bar = /<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)"/.exec(html)
+
+    expect(viewBox).not.toBeNull()
+    expect(bar).not.toBeNull()
+
+    const height = Number(viewBox?.[2])
+    const barBottom = Number(bar?.[1]) + Number(bar?.[2])
+
+    expect(barBottom).toBeLessThanOrEqual(height)
+
+    const labels = [...html.matchAll(/<text x="([\d.]+)"[^>]*class="plab"[^>]*>([^<]*)</g)]
+
+    for (const label of labels) {
+      const half = (label[2] ?? '').length * 3.5
+
+      expect(Number(label[1]) + half).toBeLessThanOrEqual(Number(viewBox?.[1]) + 1)
+    }
+  })
 })

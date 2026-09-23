@@ -114,12 +114,7 @@ export function renderProportionBar(
   const bottomPad = belowCount > 0 ? 28 : 10
 
   const height =
-    topPad +
-    input.bars.length * BAR_HEIGHT +
-    (input.bars.length - 1) * BAR_GAP +
-    bottomPad -
-    BAR_GAP +
-    (input.bars.length > 1 ? BAR_GAP : 0)
+    topPad + input.bars.length * BAR_HEIGHT + (input.bars.length - 1) * BAR_GAP + bottomPad
 
   let svg = `<svg viewBox="0 0 ${String(width)} ${String(height)}" role="presentation">`
   let aboveUsed = 0
@@ -149,14 +144,17 @@ export function renderProportionBar(
       continue
     }
 
-    const centerX = segment.x + segment.w / 2
+    // Outside labels stay inside the chart: clamp their centre so neither end spills.
+    const halfLabel = estimateTextWidth(caption) / 2
+    const centerX = Math.min(Math.max(segment.x + segment.w / 2, halfLabel), width - halfLabel)
+    const tickX = segment.x + segment.w / 2
 
     if (aboveUsed <= belowUsed && aboveCount > 0) {
-      svg += `<line x1="${coord(centerX)}" y1="${coord(y)}" x2="${coord(centerX)}" y2="${coord(y - 6)}" class="tick-line"/>`
+      svg += `<line x1="${coord(tickX)}" y1="${coord(y)}" x2="${coord(tickX)}" y2="${coord(y - 6)}" class="tick-line"/>`
       svg += `<text x="${coord(centerX)}" y="${coord(y - 10)}" text-anchor="middle" class="plab">${escapeHtml(caption)}</text>`
       aboveUsed += 1
     } else {
-      svg += `<line x1="${coord(centerX)}" y1="${coord(y + BAR_HEIGHT)}" x2="${coord(centerX)}" y2="${coord(y + BAR_HEIGHT + 6)}" class="tick-line"/>`
+      svg += `<line x1="${coord(tickX)}" y1="${coord(y + BAR_HEIGHT)}" x2="${coord(tickX)}" y2="${coord(y + BAR_HEIGHT + 6)}" class="tick-line"/>`
       svg += `<text x="${coord(centerX)}" y="${coord(y + BAR_HEIGHT + 20)}" text-anchor="middle" class="plab">${escapeHtml(caption)}</text>`
       belowUsed += 1
     }
