@@ -60,6 +60,19 @@ function decodeRequest(request: JsonRenderRequest): Effect.Effect<string, BlockD
         }
       }
 
+      if (decoded.references !== undefined) {
+        if (decoded.references.length === 0 || decoded.references.length > 3) {
+          return Effect.fail(
+            new BlockDecodeError({
+              blockIndex: request.blockIndex,
+              component: 'bar-chart',
+              path: 'references',
+              detail: `expected 1 to 3 reference lines, got ${String(decoded.references.length)}`
+            })
+          )
+        }
+      }
+
       return Effect.succeed(
         renderBarChart(decoded, { width: request.width, idPrefix: request.idPrefix })
       )
@@ -102,6 +115,16 @@ const STACKED_JSON = `{
   ]
 }`
 
+const DAYS_ABROAD_JSON = `{
+  "title": "Days abroad per year",
+  "categories": ["2021", "2022", "2023", "2024", "2025"],
+  "format": { "digits": 0 },
+  "series": [
+    { "name": "days", "values": [28, 51, 37, 63, 44] }
+  ],
+  "references": [{ "value": 42, "label": "limit 42 days" }]
+}`
+
 const EXAMPLES: ReadonlyArray<ComponentExample> = [
   {
     id: 'latency-delta',
@@ -116,6 +139,14 @@ const EXAMPLES: ReadonlyArray<ComponentExample> = [
     title: 'On-call hours by team',
     caption: 'Fig. 2. Horizontal stacked bars, teams sorted by total load.',
     json: STACKED_JSON,
+    markup: null,
+    markupKind: null
+  },
+  {
+    id: 'days-abroad',
+    title: 'Days abroad per year',
+    caption: 'Fig. 3. Days abroad against the 42-day limit; the dashed line marks the threshold.',
+    json: DAYS_ABROAD_JSON,
     markup: null,
     markupKind: null
   }

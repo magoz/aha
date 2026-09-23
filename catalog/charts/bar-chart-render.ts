@@ -145,6 +145,18 @@ function valueDomain(input: BarChartInput, stacked: boolean): ValueDomain {
     }
   }
 
+  const refs = input.references ?? []
+
+  for (const ref of refs) {
+    if (ref.value > max) {
+      max = ref.value
+    }
+
+    if (ref.value < min) {
+      min = ref.value
+    }
+  }
+
   if (min === max) {
     return { min: min - 1, max: max + 1 }
   }
@@ -433,6 +445,260 @@ function layoutBars(input: BarChartInput, width: number): BarGeometry | null {
   return { layout, valueScale, zero, bars, order, domain }
 }
 
+interface PlacedReference {
+  readonly value: number
+  readonly caption: string
+}
+
+function referenceCaption(
+  value: number,
+  label: string | undefined,
+  format: NumberFormatSpec
+): string {
+  if (label === undefined) {
+    return formatNumberValue(value, format)
+  }
+
+  return label
+}
+
+function collectReferences(input: BarChartInput, format: NumberFormatSpec): Array<PlacedReference> {
+  const refs = input.references ?? []
+  const out: Array<PlacedReference> = []
+
+  for (const ref of refs) {
+    out.push({
+      value: ref.value,
+      caption: referenceCaption(ref.value, ref.label, format)
+    })
+  }
+
+  return out
+}
+
+function renderVerticalReferences(
+  refs: ReadonlyArray<PlacedReference>,
+  valueScale: ContinuousScale,
+  layout: FrameLayout
+): string {
+  const placed: Array<{ caption: string; x: number; y: number; anchor: string }> = []
+  const order = refs.slice().sort((left, right) => left.value - right.value)
+
+  for (let slot = 0; slot < order.length; slot += 1) {
+    const ref = order[slot]
+
+    if (ref === undefined) {
+      continue
+    }
+
+    const x = mapScale(valueScale, ref.value)
+    const y = layout.plotY + 14 + slot * 13
+    const width = ref.caption.length * 6.5 + 8
+    let anchor = 'start'
+    let lx = x + 6
+
+    if (lx + width > layout.plotX + layout.plotWidth - 2) {
+      anchor = 'end'
+      lx = x - 6
+    }
+
+    placed.push({ caption: ref.caption, x: lx, y, anchor })
+  }
+
+  let svg = ''
+
+  for (const ref of refs) {
+    const x = mapScale(valueScale, ref.value)
+    svg += `<line x1="${coord(x)}" y1="${coord(layout.plotY)}" x2="${coord(x)}" y2="${coord(layout.plotY + layout.plotHeight)}" class="mark"/>`
+  }
+
+  for (const label of placed) {
+    svg += `<text x="${coord(label.x)}" y="${coord(label.y)}" text-anchor="${label.anchor}" class="mlab">${escapeHtml(label.caption)}</text>`
+  }
+
+  return svg
+}
+
+interface LabelBox {
+  readonly x0: number
+  readonly x1: number
+  readonly y0: number
+  readonly y1: number
+}
+
+function boxesOverlap(left: LabelBox, right: LabelBox): boolean {
+  return left.x0 < right.x1 && right.x0 < left.x1 && left.y0 < right.y1 && right.y0 < left.y1
+}
+
+function referenceLabelBox(rightEdge: number, caption: string, baseline: number): LabelBox {
+  return {
+    x0: rightEdge - caption.length * 6.5,
+    x1: rightEdge,
+    y0: baseline - 11,
+    y1: baseline + 3
+  }
+}
+
+/** Bounding boxes of the vertical value labels, so reference labels can steer clear of them. */
+function verticalValueLabelBoxes(
+  input: BarChartInput,
+  bars: ReadonlyArray<BarRect>,
+  order: ReadonlyArray<number>,
+  format: NumberFormatSpec,
+  stacked: boolean,
+  zero: number
+): Array<LabelBox> {
+  const out: Array<LabelBox> = []
+
+  if (!stacked) {
+    for (const bar of bars) {
+      if (bar.h < 24) {
+        continue
+      }
+
+      const text = formatNumberValue(bar.value, format)
+      const baseline = bar.value >= 0 ? bar.y - 5 : bar.y + bar.h + 14
+      const center = bar.x + bar.w / 2
+      const half = text.length * 3 + 4
+      out.push({ x0: center - half, x1: center + half, y0: baseline - 11, y1: baseline + 3 })
+    }
+
+    return out
+  }
+
+  for (const category of order) {
+    const total = categoryTotal(input.series, category)
+    let anchorX = 0
+    let anchorY = 0
+    let room = 0
+
+    for (const bar of bars) {
+      if (bar.category !== category) {
+        continue
+      }
+
+      if (anchorY === 0 || bar.y < anchorY + 5) {
+        anchorX = bar.x + bar.w / 2
+        anchorY = bar.y - 5
+        room = zero - bar.y
+      }
+    }
+
+    if (room < 20) {
+      continue
+    }
+
+    const text = formatNumberValue(total, format)
+    const half = text.length * 3 + 4
+    out.push({
+      x0: anchorX - half,
+      x1: anchorX + half,
+      y0: anchorY - 11,
+      y1: anchorY + 3
+    })
+  }
+
+  return out
+}
+
+function renderHorizontalReferences(
+  refs: ReadonlyArray<PlacedReference>,
+  valueScale: ContinuousScale,
+  layout: FrameLayout,
+  blocked: ReadonlyArray<LabelBox>
+): string {
+  const minY = layout.plotY + 12
+  const maxY = layout.plotY + layout.plotHeight - 4
+  const sorted = refs.slice().sort((left, right) => left.value - right.value)
+  const desired: Array<number> = []
+
+  for (const ref of sorted) {
+    const y = mapScale(valueScale, ref.value)
+    let want = y - 6
+
+    if (want < minY) {
+      want = y + 13
+    }
+
+    desired.push(want)
+  }
+
+  const placed: Array<number> = []
+
+  for (let index = 0; index < desired.length; index += 1) {
+    const want = desired[index] ?? minY
+    const prev = placed[index - 1]
+    const next = prev === undefined ? want : Math.max(want, prev + 13)
+    placed.push(Math.min(Math.max(next, minY), maxY))
+  }
+
+  const rightEdge = layout.plotX + layout.plotWidth - 6
+
+  for (let index = 0; index < sorted.length; index += 1) {
+    const ref = sorted[index]
+
+    if (ref === undefined) {
+      continue
+    }
+
+    const prev = placed[index - 1]
+    const floor = prev === undefined ? minY : prev + 13
+    let baseline = placed[index] ?? minY
+    let guard = 0
+
+    while (guard < 4) {
+      const box = referenceLabelBox(rightEdge, ref.caption, baseline)
+      let hit = false
+
+      for (const other of blocked) {
+        if (boxesOverlap(box, other)) {
+          hit = true
+          break
+        }
+      }
+
+      if (!hit || baseline - 13 < floor) {
+        break
+      }
+
+      baseline -= 13
+      guard += 1
+    }
+
+    placed[index] = baseline
+  }
+
+  const last = placed[placed.length - 1]
+
+  if (last !== undefined && last > maxY) {
+    const shift = last - maxY
+
+    for (let index = 0; index < placed.length; index += 1) {
+      placed[index] = (placed[index] ?? maxY) - shift
+    }
+  }
+
+  let svg = ''
+
+  for (const ref of refs) {
+    const y = mapScale(valueScale, ref.value)
+    svg += `<line x1="${coord(layout.plotX)}" y1="${coord(y)}" x2="${coord(layout.plotX + layout.plotWidth)}" y2="${coord(y)}" class="mark"/>`
+  }
+
+  for (let index = 0; index < sorted.length; index += 1) {
+    const ref = sorted[index]
+    const y = placed[index] ?? minY
+
+    if (ref === undefined) {
+      continue
+    }
+
+    svg += `<text x="${coord(layout.plotX + layout.plotWidth - 6)}" y="${coord(y)}" text-anchor="end" class="mlab">${escapeHtml(ref.caption)}</text>`
+  }
+
+  return svg
+}
+
 export function renderBarChart(input: BarChartInput, options: BarChartRenderOptions): string {
   const horizontal = (input.orientation ?? 'vertical') === 'horizontal'
   const stacked = (input.mode ?? 'grouped') === 'stacked'
@@ -492,6 +758,17 @@ export function renderBarChart(input: BarChartInput, options: BarChartRenderOpti
     }
 
     svg += `<rect x="${coord(bar.x)}" y="${coord(bar.y)}" width="${coord(Math.max(0.5, bar.w))}" height="${coord(Math.max(0.5, bar.h))}" class="${seriesClass(bar.lane, lane.highlight ?? false, muted)}" data-stop="${String(stop)}" data-series="${String(bar.lane)}"><title>${escapeAttr(`${input.categories[bar.category] ?? ''} · ${lane.name}: ${formatNumberValue(bar.value, format)}`)}</title></rect>`
+  }
+
+  const refs = collectReferences(input, format)
+
+  if (refs.length > 0) {
+    if (horizontal) {
+      svg += renderVerticalReferences(refs, valueScale, layout)
+    } else {
+      const blocked = verticalValueLabelBoxes(input, bars, order, format, stacked, zero)
+      svg += renderHorizontalReferences(refs, valueScale, layout, blocked)
+    }
   }
 
   if (!horizontal) {
@@ -594,7 +871,19 @@ export function renderBarChart(input: BarChartInput, options: BarChartRenderOpti
     table += '</tr>'
   }
 
-  table += '</tbody></table></div></details>'
+  table += '</tbody></table>'
+
+  if (refs.length > 0) {
+    const parts: Array<string> = []
+
+    for (const ref of refs) {
+      parts.push(`${ref.caption} — ${formatNumberValue(ref.value, format)}`)
+    }
+
+    table += `<p class="aha-refs">Reference: ${escapeHtml(parts.join('; '))}</p>`
+  }
+
+  table += '</div></details>'
 
   const names = input.series.map((lane) => lane.name).join(', ')
   const aria = input.title === undefined ? `Bar chart: ${names}` : `${input.title}: ${names}`

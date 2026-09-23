@@ -28,6 +28,15 @@ export const BarSeriesSchema = Schema.Struct({
   })
 })
 
+export const BarReferenceSchema = Schema.Struct({
+  value: Schema.Number.annotate({
+    description: 'Value on the value axis where the line is drawn.'
+  }),
+  label: Schema.optional(Schema.String).annotate({
+    description: 'Line caption shown beside the plot edge; defaults to the value.'
+  })
+})
+
 export const BarChartSchema = Schema.Struct({
   title: Schema.optional(Schema.String).annotate({
     description: 'Short chart title shown above the plot.'
@@ -52,6 +61,9 @@ export const BarChartSchema = Schema.Struct({
   }),
   series: Schema.Array(BarSeriesSchema).annotate({
     description: 'One entry per series; every values array must match categories in length.'
+  }),
+  references: Schema.optional(Schema.Array(BarReferenceSchema)).annotate({
+    description: 'Optional reference lines (1 to 3) on the value axis, e.g. a legal limit.'
   })
 })
 

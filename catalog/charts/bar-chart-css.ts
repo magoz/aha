@@ -19,6 +19,8 @@ export const BAR_CHART_CSS = `${CHART_CSS}
 .aha-bars .bar.cat-4 { fill: #3e7a78; fill-opacity: 1; }
 .aha-bars .bar.cat-5 { fill: #7a5c48; fill-opacity: 1; }
 .aha-bars .zero { stroke: var(--rule); stroke-width: 1; }
+.aha-bars .mark { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 6 3; }
+.aha-bars .mlab { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
 .aha-bars .vlab { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
 .aha-bars rect.bar.on { stroke: var(--accent); stroke-width: 2; }
 @media (prefers-color-scheme: dark) {

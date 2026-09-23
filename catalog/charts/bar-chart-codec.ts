@@ -70,6 +70,61 @@ interface BuiltSeries {
   values: Array<number | null>
 }
 
+interface BuiltReference {
+  value: number
+  label?: string
+}
+
+function readReference(entry: JsonValue): BuiltReference | null {
+  if (!isJsonRecord(entry)) {
+    return null
+  }
+
+  const value = entry['value']
+
+  if (value === undefined || !isJsonNumber(value)) {
+    return null
+  }
+
+  const label = readTextField(entry, 'label')
+
+  if (label !== null) {
+    return { value, label }
+  }
+
+  return { value }
+}
+
+function readReferences(record: {
+  readonly [key: string]: JsonValue
+}): Array<BuiltReference> | undefined {
+  const raw = readArrayField(record, 'references')
+
+  if (raw === null) {
+    return undefined
+  }
+
+  const out: Array<BuiltReference> = []
+
+  for (const entry of raw) {
+    if (out.length >= 3) {
+      break
+    }
+
+    const ref = readReference(entry)
+
+    if (ref !== null) {
+      out.push(ref)
+    }
+  }
+
+  if (out.length === 0) {
+    return undefined
+  }
+
+  return out
+}
+
 function readValue(raw: JsonValue | undefined): number | null {
   if (raw === undefined || raw === null) {
     return null
@@ -118,6 +173,7 @@ export interface BarChartBuilder {
   readonly categories: Array<string>
   format?: BuiltNumberFormat
   readonly series: Array<BuiltSeries>
+  references?: Array<BuiltReference>
 }
 
 export function decodeBarChartJson(record: {
@@ -185,6 +241,12 @@ export function decodeBarChartJson(record: {
 
   if (format !== undefined) {
     out.format = format
+  }
+
+  const references = readReferences(record)
+
+  if (references !== undefined) {
+    out.references = references
   }
 
   return out
