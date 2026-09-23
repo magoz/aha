@@ -205,6 +205,7 @@ in-memory bundles through fake layers and never need `dist`.
 fake layers (`Layer.succeed` for the bundle and file stores). They cover
 decode error paths, deterministic rendering, idempotent builds,
 byte-preservation, used-only inlining, registry aggregation and the
-`aha components` output. Interaction (hover, keyboard, tap) is checked
-against real Chromium under the production CSP via `pnpm preview --serve`
-plus a throwaway CDP script (kept out of the repo).
+`aha components` output. `pnpm preview` probes hover and focus overlays
+automatically; keyboard and tap behaviour beyond that is checked against
+real Chromium via `pnpm preview --serve` plus a throwaway CDP script (kept
+out of the repo).
