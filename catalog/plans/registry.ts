@@ -1,3 +1,8 @@
+import { calendarComponent } from './calendar.js'
+import { factSetComponent } from './fact-set.js'
+import { quoteComponent } from './quote.js'
+import { scalableListComponent } from './scalable-list.js'
+import { statusListComponent } from './status-list.js'
 import type { CatalogComponent } from '../component.js'
 
 /**
@@ -5,4 +10,10 @@ import type { CatalogComponent } from '../component.js'
  * shared file changes.
  */
 
-export const plansComponents: ReadonlyArray<CatalogComponent> = []
+export const plansComponents: ReadonlyArray<CatalogComponent> = [
+  statusListComponent,
+  calendarComponent,
+  factSetComponent,
+  scalableListComponent,
+  quoteComponent
+]
