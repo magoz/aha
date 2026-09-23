@@ -1,12 +1,12 @@
 import {
   layoutFrame,
-  placeSeriesLabels,
+  placeEndLabels,
   renderAxis,
   renderAxisCaption,
-  renderSeriesLabels,
+  renderEndLabels,
   tooltipShell
 } from '../shared/chart-frame.js'
-import type { LabelSlot } from '../shared/chart-frame.js'
+import type { EndLabelSlot } from '../shared/chart-frame.js'
 import type { ChartStop } from '../shared/chart-client.js'
 import {
   defaultNumberFormat,
@@ -405,7 +405,8 @@ export function renderLineChart(input: LineChartInput, options: LineChartRenderO
   const layout = layoutFrame({
     width,
     height,
-    leftGutter: Math.min(110, Math.max(44, longestTick * 7 + 14))
+    leftGutter: Math.min(110, Math.max(44, longestTick * 7 + 14)),
+    margins: { top: 26 }
   })
 
   let xScale: ContinuousScale
@@ -541,7 +542,7 @@ export function renderLineChart(input: LineChartInput, options: LineChartRenderO
   svg += `<rect x="${coord(layout.plotX)}" y="${coord(layout.plotY)}" width="${coord(layout.plotWidth)}" height="${coord(layout.plotHeight)}" class="frame"/>`
 
   if (input.y?.label !== undefined) {
-    svg += renderAxisCaption(escapeHtml(input.y.label), layout.plotX, layout.plotY - 4, 'start')
+    svg += renderAxisCaption(escapeHtml(input.y.label), layout.plotX, layout.plotY - 10, 'start')
   }
 
   if (input.x.label !== undefined) {
@@ -564,7 +565,7 @@ export function renderLineChart(input: LineChartInput, options: LineChartRenderO
     }
   }
 
-  const slots: Array<LabelSlot> = []
+  const slots: Array<EndLabelSlot> = []
   const showMarkers = stops.length <= 40
 
   for (let laneIndex = 0; laneIndex < series.length; laneIndex += 1) {
@@ -623,7 +624,7 @@ export function renderLineChart(input: LineChartInput, options: LineChartRenderO
       slots.push({
         seriesIndex: laneIndex,
         name: lane.name,
-        x: layout.plotX + layout.plotWidth + 8,
+        x: lastPixel.x,
         y: lastPixel.y
       })
     }
@@ -632,8 +633,12 @@ export function renderLineChart(input: LineChartInput, options: LineChartRenderO
   }
 
   const highlighted = series.map((lane) => lane.highlight)
-  svg += renderSeriesLabels({
-    labels: placeSeriesLabels(slots, { minY: layout.plotY + 4, maxY: layout.height - 6 }),
+  svg += renderEndLabels({
+    labels: placeEndLabels(slots, {
+      minY: layout.plotY + 4,
+      maxY: layout.height - 6,
+      maxX: layout.width - 2
+    }),
     highlighted
   })
   svg += '</svg>'

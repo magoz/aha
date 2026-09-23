@@ -143,3 +143,40 @@ export function timeTicks(input: TimeTickInput): ReadonlyArray<ChartTick> {
 
   return out
 }
+
+export interface TwoTickInput {
+  readonly min: number
+  readonly max: number
+  readonly format: NumberFormatSpec
+}
+
+/**
+ * Guarantee at least two labelled ticks for small multiples: keep the
+ * computed ticks when there are two or more, otherwise fall back to the
+ * domain ends so every row stays readable.
+ */
+export function ensureTwoTicks(
+  ticks: ReadonlyArray<ChartTick>,
+  input: TwoTickInput
+): ReadonlyArray<ChartTick> {
+  if (ticks.length >= 2) {
+    return ticks
+  }
+
+  if (ticks.length === 1) {
+    const only = ticks[0]
+
+    if (only !== undefined && Math.abs(only.value - input.min) < Math.abs(only.value - input.max)) {
+      return [only, { value: input.max, label: formatNumberValue(input.max, input.format) }]
+    }
+
+    if (only !== undefined) {
+      return [{ value: input.min, label: formatNumberValue(input.min, input.format) }, only]
+    }
+  }
+
+  return [
+    { value: input.min, label: formatNumberValue(input.min, input.format) },
+    { value: input.max, label: formatNumberValue(input.max, input.format) }
+  ]
+}

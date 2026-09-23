@@ -9,7 +9,7 @@ import {
   parseTimeInput
 } from '../shared/format.js'
 import type { NumberFormatSpec } from '../shared/format.js'
-import { linearTicks, timeTicks } from '../shared/ticks.js'
+import { linearTicks, timeTicks, ensureTwoTicks } from '../shared/ticks.js'
 import {
   bandPath,
   coord,
@@ -54,6 +54,7 @@ interface ResolvedRow {
   readonly label: string
   readonly kind: string
   readonly unit: string | null
+  readonly barUnit: string | null
   readonly blue: boolean
   readonly laneIndex: number
   readonly format: NumberFormatSpec
@@ -99,6 +100,7 @@ function resolveRows(input: TimeStripsInput): ReadonlyArray<ResolvedRow> {
       label: row.label,
       kind: row.kind,
       unit: row.unit ?? null,
+      barUnit: row.barUnit ?? null,
       blue: (row.lane ?? 'ink') === 'blue',
       laneIndex: lane,
       format: readStripFormat(row.format),
@@ -283,12 +285,19 @@ export function renderTimeStrips(input: TimeStripsInput, options: TimeStripsRend
     const lane = frame.row.blue ? 'ts-blue' : `ls-${String(frame.row.laneIndex % 4)}`
     const marker = markerForSeries(frame.row.laneIndex)
 
-    const ticks = linearTicks({
-      min: frame.lineMin,
-      max: frame.lineMax,
-      count: 2,
-      format: frame.row.format
-    })
+    const hasBars =
+      (frame.row.kind === 'bars' || frame.row.kind === 'line-bars') &&
+      rowBarValues(frame.row).length > 0
+
+    const ticks = ensureTwoTicks(
+      linearTicks({
+        min: frame.lineMin,
+        max: frame.lineMax,
+        count: 3,
+        format: frame.row.format
+      }),
+      { min: frame.lineMin, max: frame.lineMax, format: frame.row.format }
+    )
 
     const positions: Array<number> = []
 
@@ -307,7 +316,11 @@ export function renderTimeStrips(input: TimeStripsInput, options: TimeStripsRend
     })
 
     const caption =
-      frame.row.unit === null ? frame.row.label : `${frame.row.label} · ${frame.row.unit}`
+      frame.row.unit === null
+        ? frame.row.label
+        : frame.row.barUnit !== null && hasBars
+          ? `${frame.row.label} · ${frame.row.unit} line (left), ${frame.row.barUnit} bars (right)`
+          : `${frame.row.label} · ${frame.row.unit}`
 
     svg += renderAxisCaption(escapeHtml(caption), layout.plotX, frame.top - 6, 'start')
 
@@ -393,6 +406,31 @@ export function renderTimeStrips(input: TimeStripsInput, options: TimeStripsRend
     }
 
     svg += `<line x1="${coord(layout.plotX)}" y1="${coord(frame.top + ROW_HEIGHT)}" x2="${coord(layout.plotX + layout.plotWidth)}" y2="${coord(frame.top + ROW_HEIGHT)}" class="frame"/>`
+
+    if (hasBars && frame.row.kind === 'line-bars') {
+      const barTicks = ensureTwoTicks(
+        linearTicks({ min: 0, max: frame.barMax, count: 2, format: frame.row.format }),
+        { min: 0, max: frame.barMax, format: frame.row.format }
+      )
+
+      const barPositions: Array<number> = []
+
+      for (const tick of barTicks) {
+        barPositions.push(barYOf(frame, tick.value))
+      }
+
+      svg += renderAxis({
+        ticks: barTicks,
+        positions: barPositions,
+        orientation: 'y',
+        side: 'right',
+        grid: false,
+        plotX: layout.plotX,
+        plotY: frame.top,
+        plotWidth: layout.plotWidth,
+        plotHeight: ROW_HEIGHT
+      })
+    }
   }
 
   const axisTop = TOP_PAD + rows.length * ROW_HEIGHT + (rows.length - 1) * ROW_GAP

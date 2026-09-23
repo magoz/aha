@@ -111,6 +111,7 @@ interface BuiltRow {
   label: string
   kind: RowKind
   unit?: string
+  barUnit?: string
   lane?: Lane
   points: Array<BuiltPoint>
 }
@@ -150,6 +151,12 @@ function readRow(entry: JsonValue): BuiltRow | null {
 
   if (unit !== null) {
     out.unit = unit
+  }
+
+  const barUnit = readTextField(entry, 'barUnit')
+
+  if (barUnit !== null) {
+    out.barUnit = barUnit
   }
 
   out.lane = readLane(entry['lane'])
