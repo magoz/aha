@@ -29,6 +29,7 @@ export const DIAGRAM_CSS = `
 .aha-diagram svg.has-sel .edge.hot polygon { fill: var(--accent); }
 .aha-diagram .swrap { overflow-x: auto; max-width: 100%; }
 .aha-diagram details.aha-values { margin-top: 0.75rem; font-size: var(--t-sm); }
+.aha-diagram .aha-scroll { max-width: 100%; overflow-x: auto; }
 .aha-diagram details.aha-values summary { font-family: var(--mono); font-size: var(--t-xs); color: var(--muted); cursor: pointer; }
 .aha-diagram details.aha-values table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: var(--t-xs); margin-top: 0.5rem; }
 .aha-diagram details.aha-values th, .aha-diagram details.aha-values td { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--hair); }

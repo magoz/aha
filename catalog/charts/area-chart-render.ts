@@ -424,7 +424,7 @@ export function renderAreaChart(input: AreaChartInput, options: AreaChartRenderO
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>x</th>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>x</th>'
 
   for (const lane of input.series) {
     table += `<th class="num">${escapeHtml(lane.name)}</th>`
@@ -443,7 +443,7 @@ export function renderAreaChart(input: AreaChartInput, options: AreaChartRenderO
     table += '</tr>'
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const names = input.series.map((lane) => lane.name).join(', ')
   const aria = input.title === undefined ? `Area chart: ${names}` : `${input.title}: ${names}`

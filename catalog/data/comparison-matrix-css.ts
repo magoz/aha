@@ -21,5 +21,6 @@ export const COMPARISON_MATRIX_CSS = `
 .aha-matrix td.mk-yes { color: var(--ink); font-weight: 600; }
 .aha-matrix td.mk-part { color: var(--ink); }
 .aha-matrix td.mk-no { color: var(--muted); }
-.aha-matrix .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.aha-matrix td:has(.vh), .aha-matrix th:has(.vh) { position: relative; }
+.aha-matrix .vh { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 `

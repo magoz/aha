@@ -163,13 +163,13 @@ export function renderRangePlot(input: RangePlotInput, options: RangePlotRenderO
 
   svg += '</svg>'
 
-  let table = `<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>category</th><th class="num">${escapeHtml(fromLabel)}</th><th class="num">${escapeHtml(toLabel)}</th><th class="num">change</th></tr></thead><tbody>`
+  let table = `<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>category</th><th class="num">${escapeHtml(fromLabel)}</th><th class="num">${escapeHtml(toLabel)}</th><th class="num">change</th></tr></thead><tbody>`
 
   for (const row of input.rows) {
     table += `<tr><td>${escapeHtml(row.label)}</td><td class="num">${escapeHtml(formatNumberValue(row.a, format))}</td><td class="num">${escapeHtml(formatNumberValue(row.b, format))}</td><td class="num">${escapeHtml(signedDelta(row.b - row.a, format))}</td></tr>`
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const aria = input.title === undefined ? 'Range plot' : input.title
 

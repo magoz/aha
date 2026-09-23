@@ -446,7 +446,7 @@ export function renderTimeStrips(input: TimeStripsInput, options: TimeStripsRend
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>time</th>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>time</th>'
 
   for (const frame of frames) {
     const head =
@@ -487,7 +487,7 @@ export function renderTimeStrips(input: TimeStripsInput, options: TimeStripsRend
     }
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const names = frames.map((frame) => frame.row.label).join(', ')
   const aria = input.title === undefined ? `Time strips: ${names}` : `${input.title}: ${names}`

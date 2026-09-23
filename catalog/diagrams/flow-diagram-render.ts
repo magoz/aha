@@ -31,6 +31,11 @@ export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOp
   const highlight: ReadonlyArray<string> = input.highlight ?? []
 
   let groups = ''
+  // Group frames extend beyond their member boxes; grow the viewBox to contain them.
+  let viewMinX = 0
+  let viewMinY = 0
+  let viewMaxX = layout.width
+  let viewMaxY = layout.height
 
   for (const group of input.groups ?? []) {
     const members: Array<string> = []
@@ -47,6 +52,10 @@ export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOp
       continue
     }
 
+    viewMinX = Math.min(viewMinX, bounds.x - 1)
+    viewMinY = Math.min(viewMinY, bounds.y - 1)
+    viewMaxX = Math.max(viewMaxX, bounds.x + bounds.w + 1)
+    viewMaxY = Math.max(viewMaxY, bounds.y + bounds.h + 1)
     groups += `<g class="grp"><rect x="${coord(bounds.x)}" y="${coord(bounds.y)}" width="${coord(bounds.w)}" height="${coord(bounds.h)}"/>`
     groups += `<text x="${coord(bounds.x + 10)}" y="${coord(bounds.y + 16)}">${escapeHtml(group.label)}</text></g>`
   }
@@ -68,7 +77,7 @@ export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOp
     })
   }
 
-  const svg = `<svg viewBox="0 0 ${coord(layout.width)} ${coord(layout.height)}" role="presentation" data-direction="${direction}">${groups}${edges}${nodes}</svg>`
+  const svg = `<svg viewBox="${coord(viewMinX)} ${coord(viewMinY)} ${coord(viewMaxX - viewMinX)} ${coord(viewMaxY - viewMinY)}" role="presentation" data-direction="${direction}">${groups}${edges}${nodes}</svg>`
 
   const names: Array<string> = []
 

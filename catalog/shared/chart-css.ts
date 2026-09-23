@@ -31,6 +31,7 @@ export const CHART_CSS = `
 .aha-chart .aha-tip b { font-weight: 600; }
 .aha-chart .aha-tip .hv { color: var(--accent); font-weight: 600; }
 .aha-chart details.aha-values { margin-top: 0.75rem; font-size: var(--t-sm); }
+.aha-scroll { max-width: 100%; overflow-x: auto; }
 .aha-chart details.aha-values summary { font-family: var(--mono); font-size: var(--t-xs); color: var(--muted); cursor: pointer; }
 .aha-chart details.aha-values table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: var(--t-xs); margin-top: 0.5rem; }
 .aha-chart details.aha-values th, .aha-chart details.aha-values td { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--hair); }

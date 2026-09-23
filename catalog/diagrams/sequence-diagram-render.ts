@@ -235,7 +235,7 @@ export function renderSequenceDiagram(
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Messages in order</summary><table><thead><tr><th>#</th><th>from</th><th>to</th><th>message</th></tr></thead><tbody>'
+    '<details class="aha-values"><summary>Messages in order</summary><div class="aha-scroll"><table><thead><tr><th>#</th><th>from</th><th>to</th><th>message</th></tr></thead><tbody>'
 
   for (let index = 0; index < input.messages.length; index += 1) {
     const message = input.messages[index]
@@ -247,7 +247,7 @@ export function renderSequenceDiagram(
     table += `<tr><td>${String(index + 1)}</td><td>${escapeHtml(message.from)}</td><td>${escapeHtml(message.to)}</td><td>${escapeHtml(message.label)}</td></tr>`
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const names: Array<string> = []
 

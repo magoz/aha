@@ -574,7 +574,7 @@ export function renderBarChart(input: BarChartInput, options: BarChartRenderOpti
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>category</th>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>category</th>'
 
   for (const lane of input.series) {
     table += `<th class="num">${escapeHtml(lane.name)}</th>`
@@ -594,7 +594,7 @@ export function renderBarChart(input: BarChartInput, options: BarChartRenderOpti
     table += '</tr>'
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const names = input.series.map((lane) => lane.name).join(', ')
   const aria = input.title === undefined ? `Bar chart: ${names}` : `${input.title}: ${names}`

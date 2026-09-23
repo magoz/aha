@@ -49,7 +49,8 @@ export function linearTicks(input: LinearTickInput): ReadonlyArray<ChartTick> {
   let cursor = start
   let guard = 0
 
-  while (cursor <= input.max + step / 2 && guard < 12) {
+  // Only ticks inside the domain: a tick past max maps outside the plot.
+  while (cursor <= input.max + step * 1e-9 && guard < 12) {
     const rounded = Math.round(cursor * 1e9) / 1e9
     out.push({ value: rounded, label: formatNumberValue(rounded, input.format) })
     cursor += step

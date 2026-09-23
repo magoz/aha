@@ -176,7 +176,7 @@ export function renderProportionBar(
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>bar</th><th>part</th><th class="num">share</th></tr></thead><tbody>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>bar</th><th>part</th><th class="num">share</th></tr></thead><tbody>'
 
   for (let bar = 0; bar < input.bars.length; bar += 1) {
     const row = input.bars[bar]
@@ -199,7 +199,7 @@ export function renderProportionBar(
     }
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const aria = input.title === undefined ? 'Proportion bar' : input.title
 

@@ -189,7 +189,7 @@ export function renderHeatmap(input: HeatmapInput, options: HeatmapWidthOptions)
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th></th>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th></th>'
 
   for (const column of input.columns) {
     table += `<th class="num">${escapeHtml(column)}</th>`
@@ -210,7 +210,7 @@ export function renderHeatmap(input: HeatmapInput, options: HeatmapWidthOptions)
     table += '</tr>'
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const aria = input.title === undefined ? 'Heatmap' : input.title
 

@@ -242,13 +242,13 @@ export function renderHistogram(input: HistogramInput, options: HistogramRenderO
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>bin</th><th class="num">count</th></tr></thead><tbody>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>bin</th><th class="num">count</th></tr></thead><tbody>'
 
   for (const bin of bins) {
     table += `<tr><td>${escapeHtml(formatNumberValue(bin.lo, format))}–${escapeHtml(formatNumberValue(bin.hi, format))}</td><td class="num">${escapeHtml(String(bin.count))}</td></tr>`
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const aria = input.title === undefined ? 'Histogram' : input.title
 

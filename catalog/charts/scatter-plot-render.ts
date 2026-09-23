@@ -467,13 +467,13 @@ export function renderScatterPlot(
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Exact values</summary><table><thead><tr><th>x</th><th class="num">y</th><th>label</th><th>group</th></tr></thead><tbody>'
+    '<details class="aha-values"><summary>Exact values</summary><div class="aha-scroll"><table><thead><tr><th>x</th><th class="num">y</th><th>label</th><th>group</th></tr></thead><tbody>'
 
   for (const dot of dots) {
     table += `<tr><td>${escapeHtml(formatNumberValue(dot.x, xFormat))}</td><td class="num">${escapeHtml(formatNumberValue(dot.y, yFormat))}</td><td>${escapeHtml(dot.label ?? '—')}</td><td>${escapeHtml(dot.group ?? '—')}</td></tr>`
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const aria =
     input.title === undefined ? `Scatter plot: ${String(dots.length)} points` : input.title

@@ -228,7 +228,7 @@ export function renderTimeline(input: TimelineInput, options: TimelineRenderOpti
   svg += '</svg>'
 
   let table =
-    '<details class="aha-values"><summary>Dates</summary><table><thead><tr><th>item</th><th>start</th><th>end</th></tr></thead><tbody>'
+    '<details class="aha-values"><summary>Dates</summary><div class="aha-scroll"><table><thead><tr><th>item</th><th>start</th><th>end</th></tr></thead><tbody>'
 
   for (const phase of input.phases) {
     const start = parseDiagramDate(phase.start)
@@ -244,7 +244,7 @@ export function renderTimeline(input: TimelineInput, options: TimelineRenderOpti
     table += `<tr><td>◆ ${escapeHtml(milestone.label)}</td><td>${escapeHtml(dateText)}</td><td>—</td></tr>`
   }
 
-  table += '</tbody></table></details>'
+  table += '</tbody></table></div></details>'
 
   const names: Array<string> = []
 
