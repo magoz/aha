@@ -210,7 +210,7 @@ export const calendarComponent: CatalogComponent = {
   inputKind: 'json',
   fields: describeSchemaFields(CalendarSchema),
   css: CALENDAR_CSS,
-  clientBundle: null,
+  clientBundle: 'calendar.client.js',
   examples: EXAMPLES,
   renderJson: decodeRequest,
   renderMarkup: null
