@@ -1,12 +1,16 @@
 # Aha publishing skill
 
-Publish a self-contained static HTML file with the `aha` CLI. The product is
+Publish a self-contained HTML file with the `aha` CLI. The product is
 "Aha"; each document is "an aha": one self-contained page an agent hands you
 to explain something — explainers, visual concept walkthroughs, comparisons,
 plans. Documents are private by default; publish only on explicit owner
 instruction.
 
 ## Workflow
+
+This skill, the chosen template and the preview output are all the context
+needed. Don't explore the CLI or repository source, write the page in one
+pass, and preview once more only after a fix.
 
 1. Write one self-contained `.html` file: inline `<style>` and optional inline
    `<script>` (use `addEventListener`; `onclick=`-style attributes are
@@ -17,18 +21,30 @@ instruction.
    Start from `templates/note.html` (short) or `templates/plan.html` (long) in
    this repository and follow the
    [document style](#document-style) below.
-2. Upload privately and capture the URL:
+2. Check it under the production CSP (about 2 s; pass an absolute path):
+
+   ```sh
+   pnpm -C ~/aha preview /abs/path/page.html
+   ```
+
+   It prints JSON with desktop and mobile full-page screenshot paths and any
+   `problems` (script errors, CSP violations, mobile overflow), exiting 1 if
+   there are any. Look at the screenshots; fix problems before uploading. Use
+   `--serve` to get a URL for manual interaction. Don't build your own server
+   or browser harness.
+
+3. Upload privately and capture the URL:
 
    ```sh
    aha upload ./page.html
    # prints {"id":"<id>","url":"https://aha.oox.sh/<id>","etag":"..."}
    ```
 
-   The share URL is `https://aha.oox.sh/<id>`. Anonymous off-tailnet reads
-   return 404 until published. Private tailnet reads require the configured
-   gateway and split DNS; an upload does not configure that infrastructure.
+   The printed JSON is the confirmation. Uploads are always private until an
+   explicit `aha publish`, so don't re-list, read back, or probe the URL
+   unless the upload failed.
 
-3. Share the URL. The owner publishes explicitly:
+4. Share the URL. The owner publishes explicitly:
 
    ```sh
    aha publish <id>
@@ -83,9 +99,21 @@ a label on every box, `<figure>` with a numbered mono caption. Code sits in
 `<pre>` with a hairline border and no syntax colors; show changes as a diff.
 Footnotes are real footnotes with return links. Glossaries use `<dl>`.
 
+**Interaction.** Charts are explored in place: pointer anywhere over the plot
+snaps to the nearest data point and shows its values in a tooltip beside it;
+keyboard focus and tap do the same. Nothing is pre-selected, and values never
+appear in a panel away from the point. Label series directly on the chart so
+no legend lookup is needed, and give axes a few labelled ticks (hover does not
+replace them). When the point is change over time or a trade-off between
+quantities, lead with the chart; exact values are a backup table below it,
+collapsed in `<details>` when long.
+
 **Writing.** Specific numbers over adjectives, short sentences, no
 exclamation marks, no marketing tone, no "in this note we will". State a
-decision and its trade-off in one callout. Every phase has a duration and exit
+decision and its trade-off in one callout. Omit the obvious: no usage hints
+("hover for details", "scroll sideways"), no keys that restate what the
+page already shows, no definitions of standard terms. Mention a caveat only
+if it could change the reader's decision. Every phase has a duration and exit
 criteria; every risk has a mitigation; every open question has an owner. Be
 correct: a senior engineer reads these.
 
@@ -106,7 +134,9 @@ second accent color, a serif.
   ```
 
 - Read back with `aha read <id> [--output out.html]`; list with
-  `aha list [--public] [--json]`.
+  `aha list [--public] [--json]`. Neither is part of the normal workflow.
+- Report back with the id/URL and at most a few lines on anything the owner
+  should know.
 - Configure via `--endpoint`/`AHA_ENDPOINT` (default
   `https://aha.oox.sh`; loopback `http:` only for development) and
   `--token`/`AHA_OWNER_TOKEN`. On split-DNS tailnets, set the endpoint
