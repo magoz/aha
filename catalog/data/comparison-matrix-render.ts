@@ -1,3 +1,4 @@
+import { formatNumberValue } from '../shared/format.js'
 import { escapeAttr, escapeHtml } from '../shared/svg.js'
 import type { ComparisonMatrixInput, MatrixCell } from './comparison-matrix-schema.js'
 
@@ -89,8 +90,9 @@ function renderCell(cell: MatrixCell): string {
   if (value !== null) {
     const unit = readCellUnit(cell)
     const suffix = unit === null ? '' : `<span class="unit"> ${escapeHtml(unit)}</span>`
+    const formatted = formatNumberValue(value, { style: 'decimal', currency: null, digits: null })
 
-    return `<td class="num">${escapeHtml(String(value))}${suffix}</td>`
+    return `<td class="num">${escapeHtml(formatted)}${suffix}</td>`
   }
 
   return '<td class="txt">—</td>'
@@ -126,5 +128,5 @@ export function renderComparisonMatrix(
   const title =
     input.title === undefined ? '' : `<p class="aha-title">${escapeHtml(input.title)}</p>`
 
-  return `<div class="aha-matrix" data-matrix="comparison-matrix" data-matrix-id="${escapeAttr(options.idPrefix)}"><div class="tw">${title}<table>${head}${body}</table></div></div>`
+  return `<div class="aha-matrix" data-matrix="comparison-matrix" data-matrix-id="${escapeAttr(options.idPrefix)}">${title}<div class="tw-wrap"><div class="tw"><table>${head}${body}</table></div><div class="edge" aria-hidden="true"></div></div></div>`
 }
