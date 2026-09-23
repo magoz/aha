@@ -8,8 +8,12 @@ instruction.
 
 ## Workflow
 
-1. Write one self-contained `.html` file: inline `<style>` only, no
-   `<script>`, no forms, no frames, no external resources. Keep it under 2 MiB.
+1. Write one self-contained `.html` file: inline `<style>` and optional inline
+   `<script>` (use `addEventListener`; `onclick=`-style attributes are
+   blocked). No `<script src>`, `fetch`/network, storage, forms, frames or
+   external resources; inline any library you need. Images and fonts must be
+   `data:` URIs. The page should read fine before scripts run. Keep it under
+   2 MiB.
    Start from `templates/note.html` (short) or `templates/plan.html` (long) in
    this repository and follow the
    [document style](#document-style) below.

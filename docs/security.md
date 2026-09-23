@@ -23,5 +23,9 @@
   server-side, and refuses upstream redirects instead of following them.
 - Every response carries `Cache-Control: no-store`, `Referrer-Policy:
 no-referrer`, `X-Content-Type-Options: nosniff`, and a restrictive
-  `Content-Security-Policy` with `sandbox` and no scripts, forms, frames,
-  or network (inline styles and `data:` images/fonts stay allowed).
+  `Content-Security-Policy` with `sandbox allow-scripts` (opaque origin, no
+  cookies/storage access) that allows inline scripts and styles, blocks
+  inline event-handler attributes, and forbids network, external resources,
+  forms and frames (`data:` images/fonts stay allowed). Scripts can still
+  navigate the page, so a hostile document could leak its own content via
+  a URL; this is accepted because the owner is the only author.

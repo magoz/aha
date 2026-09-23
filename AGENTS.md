@@ -23,7 +23,7 @@ Personal HTML publishing for agents. Public repository: never commit credentials
 
 ## Security
 
-- Static single-file HTML only initially. Serve with restrictive CSP (sandbox, no scripts/network/forms/frames), no-referrer, nosniff and no-store. Do not expose service credentials through HTML, URLs, logs or errors.
+- Self-contained single-file HTML. Serve with restrictive CSP (`sandbox allow-scripts` with an opaque origin; inline scripts allowed, inline event-handler attributes blocked; no network/external resources/forms/frames), no-referrer, nosniff and no-store. The owner is the only author, so inline scripts are an accepted risk. Do not expose service credentials through HTML, URLs, logs or errors.
 - Owner-only writes; all documents private by default. Publication requires explicit CLI command. Invalid IDs/path traversal must never become arbitrary storage keys.
 - A private read credential cannot mutate, list, or publish. Gateway must strip client credentials and never follow redirects that could leak its credential.
 - Uploaded sample documents must be synthetic, non-sensitive data.

@@ -3,7 +3,7 @@ import type { HeaderMap } from './headers.js'
 export const SECURITY_HEADERS: HeaderMap = {
   'cache-control': 'no-store',
   'content-security-policy':
-    "default-src 'none'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox",
+    "default-src 'none'; script-src 'unsafe-inline'; script-src-attr 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox allow-scripts",
   'referrer-policy': 'no-referrer',
   'x-content-type-options': 'nosniff',
   'cross-origin-resource-policy': 'same-origin'
