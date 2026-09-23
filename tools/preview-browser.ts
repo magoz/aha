@@ -29,11 +29,15 @@ export interface PreviewRunInput {
 export interface PreviewRunResult {
   readonly desktopShot: string
   readonly mobileShot: string
+  readonly desktopTiles: ReadonlyArray<string>
+  readonly mobileTiles: ReadonlyArray<string>
   readonly problems: ReadonlyArray<PreviewProblem>
 }
 
+export type CdpValue = string | number | boolean | CdpParams
+
 export interface CdpParams {
-  readonly [name: string]: string | number | boolean
+  readonly [name: string]: CdpValue
 }
 
 export interface CdpDriver {
@@ -641,6 +645,9 @@ const MOBILE_SPEC: ViewportSpec = { name: 'mobile', width: 390, height: 844, mob
 
 const MAX_SHOT_HEIGHT = 10000
 
+/** Tall pages are also saved as numbered tiles so agents can read one section at a time. */
+const TILE_HEIGHT = 2000
+
 const SETTLE_EXPRESSION =
   "(async () => { await document.fonts.ready; await new Promise((resolve) => { requestAnimationFrame(() => { requestAnimationFrame(resolve) }) }); return 'ready' })()"
 
@@ -751,6 +758,56 @@ function checkMobileOverflow(
   })
 }
 
+interface ViewportShots {
+  readonly shot: string
+  readonly tiles: ReadonlyArray<string>
+}
+
+function captureTiles(
+  driver: CdpDriver,
+  sessionId: string,
+  spec: ViewportSpec,
+  fullHeight: number,
+  outDir: string,
+  stem: string
+): Effect.Effect<ReadonlyArray<string>, PreviewFailure> {
+  return Effect.gen(function* () {
+    if (fullHeight <= TILE_HEIGHT * 1.2) {
+      return []
+    }
+
+    const tiles: Array<string> = []
+
+    for (let top = 0; top < fullHeight; top += TILE_HEIGHT) {
+      const height = Math.min(TILE_HEIGHT, fullHeight - top)
+
+      const tile = yield* sendCdp(
+        driver,
+        'Page.captureScreenshot',
+        {
+          format: 'png',
+          captureBeyondViewport: true,
+          clip: { x: 0, y: top, width: spec.width, height, scale: 1 }
+        },
+        sessionId,
+        ScreenshotResultSchema
+      )
+
+      const index = String(tiles.length + 1).padStart(2, '0')
+      const tilePath = join(outDir, `${stem}.${spec.name}.${index}.png`)
+
+      yield* Effect.tryPromise({
+        try: () => writeFile(tilePath, Buffer.from(tile.data, 'base64')),
+        catch: () => new PreviewFailure({ message: `cannot write screenshot: ${tilePath}` })
+      })
+
+      tiles.push(tilePath)
+    }
+
+    return tiles
+  })
+}
+
 function runViewport(
   driver: CdpDriver,
   sessionId: string,
@@ -758,7 +815,7 @@ function runViewport(
   url: string,
   outDir: string,
   stem: string
-): Effect.Effect<string, PreviewFailure> {
+): Effect.Effect<ViewportShots, PreviewFailure> {
   return Effect.gen(function* () {
     driver.currentViewport = spec.name
 
@@ -811,11 +868,13 @@ function runViewport(
       catch: () => new PreviewFailure({ message: `cannot write screenshot: ${shotPath}` })
     })
 
+    const tiles = yield* captureTiles(driver, sessionId, spec, fullHeight, outDir, stem)
+
     if (spec.mobile) {
       yield* checkMobileOverflow(driver, sessionId)
     }
 
-    return shotPath
+    return { shot: shotPath, tiles }
   })
 }
 
@@ -912,8 +971,10 @@ export function runPreviewBrowser(
               )
 
               return {
-                desktopShot,
-                mobileShot,
+                desktopShot: desktopShot.shot,
+                mobileShot: mobileShot.shot,
+                desktopTiles: desktopShot.tiles,
+                mobileTiles: mobileShot.tiles,
                 problems: attached.driver.problems.slice()
               }
             }),

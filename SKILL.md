@@ -39,7 +39,9 @@ page in one pass, and preview once more only after a fix.
    Prose-wrapping components (`callout`, `tabs`, `scenarios`, `steps`,
    `checklist`, `definition-list`, `faq`, `quote`) take child markup instead; `scenarios` and
    `tabs` sections may contain other blocks. Hand-write SVG or script only for
-   a one-off visual no component covers.
+   a one-off visual no component covers. Pages built on research list their
+   sources with the `sources` component and cite them in prose as
+   `<a href="#src-<id>">[n]</a>`.
 
    Then build: `aha build page.html -o page.built.html`. It validates each
    block (errors name the block and field), renders static SVG/HTML with an
@@ -53,9 +55,11 @@ page in one pass, and preview once more only after a fix.
    pnpm -C ~/aha preview /abs/path/page.built.html
    ```
 
-   It prints JSON with desktop and mobile full-page screenshot paths and any
-   `problems` (script errors, CSP violations, mobile overflow), exiting 1 if
-   there are any. Look at the screenshots; fix problems before uploading. Use
+   It prints JSON with desktop and mobile full-page screenshot paths, `tiles`
+   (the same screenshots split into numbered 2000px sections for tall pages;
+   read these instead of cropping yourself) and any `problems` (script
+   errors, CSP violations, mobile overflow), exiting 1 if there are any. Look
+   at the screenshots; fix problems before uploading. Use
    `--serve` to get a URL for manual interaction. Don't build your own server
    or browser harness.
 

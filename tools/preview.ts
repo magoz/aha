@@ -21,9 +21,15 @@ interface PreviewScreenshots {
   readonly mobile: string
 }
 
+interface PreviewTiles {
+  readonly desktop: ReadonlyArray<string>
+  readonly mobile: ReadonlyArray<string>
+}
+
 interface PreviewSummary {
   readonly url: string
   readonly screenshots: PreviewScreenshots
+  readonly tiles: PreviewTiles
   readonly problems: ReadonlyArray<PreviewProblem>
   readonly elapsedMs: number
 }
@@ -124,6 +130,7 @@ function runDefault(options: PreviewOptions): Effect.Effect<void, ExitFailure> {
           return {
             url: server.url,
             screenshots: { desktop: result.desktopShot, mobile: result.mobileShot },
+            tiles: { desktop: result.desktopTiles, mobile: result.mobileTiles },
             problems: result.problems,
             elapsedMs: finished - started
           }

@@ -73,7 +73,7 @@ pnpm preview ./page.html --serve
 pnpm preview ./page.html --serve --port 4123
 ```
 
-The default run serves the file on loopback with the production security headers, captures desktop (1280x800) and mobile (390x844) screenshots with headless Chromium, and prints one JSON summary (`url`, screenshot paths, `problems`, `elapsedMs`). It exits 1 when problems are found: uncaught exceptions, console errors/warnings, log entries at error/warning level (CSP violations are tagged `csp`), or mobile horizontal overflow. `--serve` only prints the URL and keeps serving until Ctrl-C. Chromium is resolved from `AHA_CHROMIUM` or the usual `chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable` names on `PATH`.
+The default run serves the file on loopback with the production security headers, captures desktop (1280x800) and mobile (390x844) screenshots with headless Chromium, and prints one JSON summary (`url`, screenshot paths, `tiles` for pages taller than one 2000px section, `problems`, `elapsedMs`). It exits 1 when problems are found: uncaught exceptions, console errors/warnings, log entries at error/warning level (CSP violations are tagged `csp`), or mobile horizontal overflow. `--serve` only prints the URL and keeps serving until Ctrl-C. Chromium is resolved from `AHA_CHROMIUM` or the usual `chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable` names on `PATH`.
 
 ## Security and public marker contract
 

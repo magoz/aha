@@ -47,6 +47,9 @@ describe('preview browser helpers', () => {
   })
 })
 
+const TALL_HTML =
+  '<!doctype html><html><head><title>tall</title></head><body style="margin:0"><div style="height:5000px">tall</div></body></html>'
+
 describe('preview browser capture', () => {
   it.effect(
     'captures desktop and mobile screenshots under the production CSP',
@@ -101,6 +104,60 @@ describe('preview browser capture', () => {
                 expect(bytes[1]).toBe(80)
                 expect(bytes[2]).toBe(78)
                 expect(bytes[3]).toBe(71)
+                expect(result.desktopTiles).toEqual([])
+              }),
+            (server) => server.close.pipe(Effect.orElseSucceed(() => undefined))
+          )
+        } finally {
+          yield* Effect.tryPromise({
+            try: () => rm(dir, { recursive: true, force: true }),
+            catch: () => new Error('cleanup failed')
+          })
+        }
+      }),
+    30000
+  )
+
+  it.effect(
+    'saves numbered tiles for tall pages',
+    () =>
+      Effect.gen(function* () {
+        const executable = yield* lookupChromiumOnPath()
+
+        if (executable === null) {
+          return
+        }
+
+        const dir = yield* Effect.tryPromise({
+          try: () => mkdtemp(join(tmpdir(), 'aha-preview-')),
+          catch: () => new Error('mkdtemp failed')
+        })
+
+        try {
+          const file = join(dir, 'tall.html')
+
+          yield* Effect.tryPromise({
+            try: () => writeFile(file, TALL_HTML),
+            catch: () => new Error('write failed')
+          })
+
+          return yield* Effect.acquireUseRelease(
+            startPreviewServer(file, null).pipe(Effect.mapError(() => new Error('server failed'))),
+            (server) =>
+              Effect.gen(function* () {
+                const result = yield* runPreviewBrowser({
+                  executable,
+                  url: server.url,
+                  outDir: join(dir, 'shots'),
+                  stem: 'tall'
+                }).pipe(Effect.mapError((error) => new Error(`capture failed: ${error.message}`)))
+
+                expect(result.desktopTiles.length).toBe(3)
+                expect(result.desktopTiles[0]?.endsWith('tall.desktop.01.png')).toBe(true)
+
+                const tileSize = yield* fileSize(result.desktopTiles[2] ?? '')
+
+                expect(tileSize).toBeGreaterThan(100)
               }),
             (server) => server.close.pipe(Effect.orElseSucceed(() => undefined))
           )
