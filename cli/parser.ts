@@ -69,7 +69,26 @@ export interface ReadRequest {
   readonly token: string
 }
 
-export type CliRequest = UploadRequest | UpdateRequest | SimpleRequest | ListRequest | ReadRequest
+export interface BuildRequest {
+  readonly command: 'build'
+  readonly input: string
+  readonly output: string | null
+}
+
+export interface ComponentsRequest {
+  readonly command: 'components'
+  readonly name: string | null
+  readonly asJson: boolean
+}
+
+export type CliRequest =
+  | UploadRequest
+  | UpdateRequest
+  | SimpleRequest
+  | ListRequest
+  | ReadRequest
+  | BuildRequest
+  | ComponentsRequest
 
 interface GlobalOptions {
   readonly endpoint: string
@@ -291,7 +310,31 @@ export function parseCliArgs(
     const command = args[0]
 
     if (command === undefined) {
-      return fail('usage: aha <upload|update|publish|unpublish|list|read|delete> ...')
+      return fail(
+        'usage: aha <upload|update|publish|unpublish|list|read|delete|build|components> ...'
+      )
+    }
+
+    if (command === 'build') {
+      const input = args[1]
+
+      if (input === undefined) {
+        return fail('usage: aha build IN.html [-o OUT.html]')
+      }
+
+      const outIndex = args.indexOf('-o')
+      const outRaw = outIndex === -1 ? undefined : args[outIndex + 1]
+      const output = outRaw === undefined || outRaw.length === 0 ? null : outRaw
+
+      return Effect.succeed({ command: 'build' as const, input, output })
+    }
+
+    if (command === 'components') {
+      const asJson = args.includes('--json')
+      const positional = args.slice(1).filter((entry) => entry !== '--json')
+      const name = positional[0] ?? null
+
+      return Effect.succeed({ command: 'components' as const, name, asJson })
     }
 
     if (command === 'upload') {

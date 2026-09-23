@@ -19,7 +19,8 @@
     "dev": "tsx server/node-server.ts",
     "gateway": "tsx gateway/private-gateway.ts",
     "preview": "bun tools/preview.ts",
-    "aha": "tsx cli/aha.ts"
+    "aha": "tsx cli/aha.ts",
+    "catalog:showcase": "tsx tools/catalog-showcase.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1136.0",

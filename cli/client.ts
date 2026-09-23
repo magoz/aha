@@ -12,7 +12,7 @@ const ListItemSchema = Schema.Struct({
 
 const ListResponseSchema = Schema.Array(ListItemSchema)
 
-import type { CliRequest } from './parser.js'
+import type { BuildRequest, CliRequest, ComponentsRequest } from './parser.js'
 import { CliUsageError } from './parser.js'
 
 export class CliRequestError extends Schema.TaggedError<CliRequestError>()('CliRequestError', {
@@ -64,7 +64,7 @@ function extractIds(payload: string): Effect.Effect<ReadonlyArray<string>, never
 }
 
 export function runCliRequest(
-  request: CliRequest
+  request: Exclude<CliRequest, BuildRequest | ComponentsRequest>
 ): Effect.Effect<string, CliUsageError | CliRequestError> {
   if (request.command === 'upload') {
     return Effect.gen(function* () {
