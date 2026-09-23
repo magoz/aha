@@ -61,7 +61,7 @@ function rescale(root: HTMLElement, current: number): void {
   const echoed = root.querySelector('.sc-ctl output')
 
   if (echoed !== null) {
-    echoed.textContent = `Serves ${String(current)} ${label}`
+    echoed.textContent = `${String(current)} ${label}`
   }
 }
 

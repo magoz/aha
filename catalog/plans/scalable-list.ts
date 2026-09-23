@@ -89,9 +89,9 @@ const EXAMPLE_JSON = `{
   "presets": [2, 4, 8],
   "items": [
     { "name": "waxy potatoes", "qty": 800, "unit": "g", "note": "thinly sliced" },
-    { "name": "eggs", "qty": 6, "unit": "eggs" },
+    { "name": "large eggs", "qty": 6, "whole": true },
     { "name": "olive oil", "qty": 100, "unit": "ml" },
-    { "name": "yellow onion", "qty": 1, "unit": "pcs", "whole": true, "note": "thinly sliced" },
+    { "name": "yellow onion", "qty": 1, "whole": true, "note": "thinly sliced" },
     { "name": "salt", "qty": null, "note": "flaky, to finish" }
   ]
 }`
