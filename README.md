@@ -62,6 +62,19 @@ Configuration:
 
 Uploads are bounded to 2 MiB with real byte accounting; non-`text/html` content types are rejected. Updates never create unknown IDs and never change markers. Updates accept an optional `If-Match` ETag; mismatches return 412. Without `If-Match`, latest-write wins (documented here).
 
+## Preview
+
+Check a page locally under the exact production CSP before uploading:
+
+```sh
+pnpm preview ./page.html
+pnpm preview ./page.html --out ./shots
+pnpm preview ./page.html --serve
+pnpm preview ./page.html --serve --port 4123
+```
+
+The default run serves the file on loopback with the production security headers, captures desktop (1280x800) and mobile (390x844) screenshots with headless Chromium, and prints one JSON summary (`url`, screenshot paths, `problems`, `elapsedMs`). It exits 1 when problems are found: uncaught exceptions, console errors/warnings, log entries at error/warning level (CSP violations are tagged `csp`), or mobile horizontal overflow. `--serve` only prints the URL and keeps serving until Ctrl-C. Chromium is resolved from `AHA_CHROMIUM` or the usual `chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable` names on `PATH`.
+
 ## Security and public marker contract
 
 - All documents are private by default. Publication requires an explicit `publish` (creates empty `public/<id>`). `unpublish` deletes the marker. `update` preserves visibility.

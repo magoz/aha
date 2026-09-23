@@ -30,6 +30,7 @@
     "cli/**/*.ts",
     "server/**/*.ts",
     "gateway/**/*.ts",
+    "tools/preview*.ts",
     "tests/**/*.ts",
     "tools/oxlint/**/*.ts",
     "oxlint.config.ts",
