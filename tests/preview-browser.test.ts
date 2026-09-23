@@ -13,6 +13,9 @@ import {
 } from '../tools/preview-browser.js'
 import { startPreviewServer } from '../tools/preview-server.js'
 
+// Shared CI runners start Chromium slowly while several browser test files run at once.
+const BROWSER_TEST_TIMEOUT_MS = 90000
+
 const CLEAN_HTML =
   '<!doctype html><html><head><title>clean</title></head><body><p>clean page</p></body></html>'
 
@@ -115,7 +118,7 @@ describe('preview browser capture', () => {
           })
         }
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 
   it.effect(
@@ -168,7 +171,7 @@ describe('preview browser capture', () => {
           })
         }
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 
   it.effect(
@@ -219,6 +222,6 @@ describe('preview browser capture', () => {
           })
         }
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 })

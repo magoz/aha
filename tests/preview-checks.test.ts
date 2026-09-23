@@ -8,6 +8,9 @@ import { Effect } from 'effect'
 import { lookupChromiumOnPath, runPreviewBrowser } from '../tools/preview-browser.js'
 import { startPreviewServer } from '../tools/preview-server.js'
 
+// Shared CI runners start Chromium slowly while several browser test files run at once.
+const BROWSER_TEST_TIMEOUT_MS = 90000
+
 const CLIP_HTML =
   '<!doctype html><html><head><title>clip</title><style>' +
   '[data-aha]{position:relative;max-width:40rem}' +
@@ -145,7 +148,7 @@ describe('preview clip probe', () => {
         expect(clips[0]?.message).toContain('.tip')
         expect(clips[0]?.message).toContain('div.cell')
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 
   it.effect(
@@ -162,7 +165,7 @@ describe('preview clip probe', () => {
 
         expect(run.problems).toEqual([])
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 })
 
@@ -184,7 +187,7 @@ describe('preview overlap check', () => {
         expect(overlaps[0]?.message).toContain('test-overlap')
         expect(overlaps[0]?.message).toContain('details.aha-values')
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 
   it.effect(
@@ -203,7 +206,7 @@ describe('preview overlap check', () => {
         expect(overlaps.length).toBeGreaterThan(0)
         expect(overlaps[0]?.message).toContain('test-spill')
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 })
 
@@ -277,6 +280,6 @@ describe('preview dark screenshots', () => {
           })
         }
       }),
-    30000
+    BROWSER_TEST_TIMEOUT_MS
   )
 })
