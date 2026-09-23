@@ -3,6 +3,9 @@ import { chartsComponents } from './charts/registry.js'
 import { dataComponents } from './data/registry.js'
 import { diagramsComponents } from './diagrams/registry.js'
 import { interactiveComponents } from './interactive/registry.js'
+import { researchComponents } from './research/registry.js'
+import { codeComponents } from './code/registry.js'
+import { plansComponents } from './plans/registry.js'
 import { textComponents } from './text/registry.js'
 
 /**
@@ -42,6 +45,24 @@ export const catalogCategories: ReadonlyArray<CatalogCategory> = [
     title: 'Interactive',
     description: 'Controls that change what the page shows: scenarios, tabs, steps and checklists.',
     components: interactiveComponents
+  },
+  {
+    id: 'research',
+    title: 'Research and decisions',
+    description: 'Sources, claims, decisions, trade-offs and risks.',
+    components: researchComponents
+  },
+  {
+    id: 'code',
+    title: 'Code',
+    description: 'Annotated code, file trees, schemas, commands and before/after views.',
+    components: codeComponents
+  },
+  {
+    id: 'plans',
+    title: 'Plans and everyday',
+    description: 'Status, calendars, fact sheets, scalable quantities and quotes.',
+    components: plansComponents
   },
   {
     id: 'text',
