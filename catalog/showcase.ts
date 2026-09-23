@@ -40,11 +40,12 @@ function exampleFigure(exampleJson: string, name: string, caption: string, width
   return `<figure data-aha="${name}" data-width="${String(width)}">\n<script type="application/json">${exampleJson}</script>${captionHtml}\n</figure>`
 }
 
-function exampleAside(name: string, markup: string, kind: string): string {
+function exampleAside(name: string, markup: string, kind: string, width?: number): string {
   const tag = markupTagFor(name)
   const kindAttr = tag === 'aside' ? ` data-kind="${escapeHtml(kind)}"` : ''
+  const widthAttr = width === undefined ? '' : ` data-width="${String(width)}"`
 
-  return `<${tag} data-aha="${name}"${kindAttr}>\n${markup}\n</${tag}>`
+  return `<${tag} data-aha="${name}"${kindAttr}${widthAttr}>\n${markup}\n</${tag}>`
 }
 
 /** Wrapper tag matching the component's authoring contract: callout wraps
@@ -95,11 +96,11 @@ export function authorShowcaseSource(): string {
       for (const example of component.examples) {
         if (component.inputKind === 'markup' && example.markup !== null) {
           const kind = example.markupKind ?? 'note'
-          const block = exampleAside(component.name, example.markup, kind)
+          const block = exampleAside(component.name, example.markup, kind, SHOWCASE_MOBILE_WIDTH)
           sections += componentSection(
             `${component.name} · ${example.id}`,
             component.summary,
-            exampleAside(component.name, example.markup, kind),
+            exampleAside(component.name, example.markup, kind, SHOWCASE_DESKTOP_WIDTH),
             block,
             example.markup,
             'Example markup'

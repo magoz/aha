@@ -229,5 +229,5 @@ export function renderDataTable(input: DataTableInput, options: DataTableRenderO
 
   const sortable = (input.sortable ?? false) ? ' data-sortable="true"' : ''
 
-  return `<div class="aha-table" data-table="data-table" data-table-id="${escapeAttr(options.idPrefix)}"${sortable}><div class="tw">${title}${tables}</div></div>`
+  return `<div class="aha-table" data-table="data-table" data-table-id="${escapeAttr(options.idPrefix)}"${sortable}>${title}<div class="tw">${tables}</div></div>`
 }

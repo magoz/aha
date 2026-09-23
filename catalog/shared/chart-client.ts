@@ -22,6 +22,35 @@ export interface ChartSurface {
   readonly getStops: () => ReadonlyArray<ChartStop>
 }
 
+/** Rendered SVG width from its viewBox; 0 when unreadable. Lets clients
+ * reconcile static markup with the live container on load. */
+export function svgViewWidth(svg: SVGSVGElement | null): number {
+  if (svg === null) {
+    return 0
+  }
+
+  const raw = svg.getAttribute('viewBox')
+
+  if (raw === null) {
+    return 0
+  }
+
+  const parts = raw.split(' ')
+  const widthPart = parts[2]
+
+  if (widthPart === undefined) {
+    return 0
+  }
+
+  const parsed = Number(widthPart)
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0
+  }
+
+  return parsed
+}
+
 export function observeContainerWidth(
   element: HTMLElement,
   onWidth: (width: number) => void

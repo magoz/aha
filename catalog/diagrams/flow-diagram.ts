@@ -1,7 +1,9 @@
 import { Effect, Schema } from 'effect'
 
 import type { CatalogComponent, ComponentExample, JsonRenderRequest } from '../component.js'
+import type { JsonValue } from '../json-value.js'
 import { describeSchemaFields } from '../fields.js'
+import { isJsonArray, isJsonRecord, isJsonText } from '../shared/guards.js'
 import { BlockDecodeError } from '../errors.js'
 import { firstIssuePath, formatIssueDetail } from '../decode.js'
 import { renderFlowDiagram } from './flow-diagram-render.js'
@@ -27,6 +29,61 @@ function fail(
       detail
     })
   )
+}
+
+function nodeLabelFor(entry: { readonly [key: string]: JsonValue }): string {
+  const id: JsonValue | undefined = entry['id']
+
+  if (id !== undefined && isJsonText(id)) {
+    return id
+  }
+
+  return 'node'
+}
+
+/** Overlapping membership (a node in two groups) is never laid out: groups
+ * stay disjoint and edges show the shared parts. The wire schema keeps a
+ * single optional group per node; this pre-check turns a plural `groups`
+ * field or an array `group` into a clear decode error. */
+function rejectOverlappingMembership(
+  request: JsonRenderRequest
+): Effect.Effect<never, BlockDecodeError> | null {
+  if (!isJsonRecord(request.json)) {
+    return null
+  }
+
+  const nodes = request.json['nodes']
+
+  if (nodes === undefined || !isJsonArray(nodes)) {
+    return null
+  }
+
+  for (const entry of nodes) {
+    if (!isJsonRecord(entry)) {
+      continue
+    }
+
+    const groups = entry['groups']
+    const group = entry['group']
+
+    if (groups !== undefined && isJsonArray(groups)) {
+      return fail(
+        request,
+        'nodes',
+        `node "${nodeLabelFor(entry)}" must belong to at most one group; keep groups disjoint and use edges for shared parts`
+      )
+    }
+
+    if (group !== undefined && isJsonArray(group)) {
+      return fail(
+        request,
+        'nodes',
+        `node "${nodeLabelFor(entry)}" must belong to at most one group; keep groups disjoint and use edges for shared parts`
+      )
+    }
+  }
+
+  return null
 }
 
 function checkRefs(
@@ -84,6 +141,12 @@ function checkRefs(
 }
 
 function decodeRequest(request: JsonRenderRequest): Effect.Effect<string, BlockDecodeError> {
+  const overlapping = rejectOverlappingMembership(request)
+
+  if (overlapping !== null) {
+    return overlapping
+  }
+
   return Schema.decodeUnknownEffect(FlowDiagramSchema)(request.json).pipe(
     Effect.mapError(
       (parseError) =>
@@ -119,8 +182,8 @@ const EXAMPLE_JSON = `{
   "nodes": [
     { "id": "agent", "label": "Agent", "group": "publish" },
     { "id": "cli", "label": "CLI", "group": "publish" },
-    { "id": "api", "label": "Vercel API", "group": "publish" },
-    { "id": "r2", "label": "R2 store", "group": "publish" },
+    { "id": "api", "label": "Vercel API" },
+    { "id": "r2", "label": "R2 store" },
     { "id": "reader", "label": "Reader", "group": "public" },
     { "id": "dns", "label": "Public DNS", "group": "public" },
     { "id": "check", "label": "Marker check", "group": "public" },
@@ -147,7 +210,7 @@ const EXAMPLES: ReadonlyArray<ComponentExample> = [
     id: 'aha-request-flow',
     title: 'Aha request flow',
     caption:
-      'Fig. 1. Publish, public read and tailnet read paths; the publish path is highlighted.',
+      'Fig. 1. Publish, public read and tailnet read paths over shared services; the publish path is highlighted.',
     json: EXAMPLE_JSON,
     markup: null,
     markupKind: null

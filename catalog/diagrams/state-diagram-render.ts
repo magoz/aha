@@ -80,7 +80,24 @@ export function renderStateDiagram(input: StateDiagramInput, options: StateRende
     })
   }
 
-  const svg = `<svg viewBox="0 0 ${coord(layout.width)} ${coord(layout.height)}" role="presentation" data-direction="${direction}">${edges}${nodes}</svg>`
+  let viewMinX = 0
+  let viewMinY = 0
+  let viewMaxX = layout.width
+  let viewMaxY = layout.height
+
+  for (const edge of layout.edges) {
+    if (edge.label !== null) {
+      const w = edge.label.length * 6.4 + 12
+      viewMinX = Math.min(viewMinX, edge.labelX - w / 2 - 4)
+      viewMinY = Math.min(viewMinY, edge.labelY - 14)
+      viewMaxX = Math.max(viewMaxX, edge.labelX + w / 2 + 4)
+      viewMaxY = Math.max(viewMaxY, edge.labelY + 6)
+    }
+  }
+
+  const viewW = viewMaxX - viewMinX
+  const minStyle = viewW > width ? ` style="min-width: ${coord(viewW)}px"` : ''
+  const svg = `<svg viewBox="${coord(viewMinX)} ${coord(viewMinY)} ${coord(viewW)} ${coord(viewMaxY - viewMinY)}" role="presentation" data-direction="${direction}"${minStyle}>${edges}${nodes}</svg>`
 
   const names: Array<string> = []
 
@@ -95,5 +112,5 @@ export function renderStateDiagram(input: StateDiagramInput, options: StateRende
 
   const title = input.title === undefined ? '' : `<p class="dtitle">${escapeHtml(input.title)}</p>`
 
-  return `<div class="aha-diagram aha-state" data-diagram="state-diagram" data-diagram-id="${escapeAttr(options.idPrefix)}" tabindex="0" role="img" aria-label="${escapeAttr(aria)}">${title}${svg}</div>`
+  return `<div class="aha-diagram aha-state" data-diagram="state-diagram" data-diagram-id="${escapeAttr(options.idPrefix)}" tabindex="0" role="img" aria-label="${escapeAttr(aria)}">${title}<div class="swrap">${svg}</div></div>`
 }

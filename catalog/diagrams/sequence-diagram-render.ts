@@ -23,6 +23,8 @@ const NOTE_H = 38
 
 const MIN_LANE = 104
 
+const MIN_LANE_NARROW = 82
+
 const ARROW_LEN = 9
 
 export interface SequenceRenderOptions {
@@ -38,12 +40,36 @@ interface PlacedRow {
   readonly y: number
 }
 
+function narrowSpan(span: number): boolean {
+  return span < 560
+}
+
+/** Actor header lines: single line on wide lanes, wrapping to two lines
+ * when lanes tighten so three to four actors fit at 390px. */
+export function actorLines(label: string, span: number): ReadonlyArray<string> {
+  if (narrowSpan(span)) {
+    return wrapLabel(label, 12)
+  }
+
+  return wrapLabel(label, 20)
+}
+
 function laneWidth(input: SequenceDiagramInput, span: number): number {
-  let content = MIN_LANE
+  const narrow = narrowSpan(span)
+  let content = narrow ? MIN_LANE_NARROW : MIN_LANE
+  const pad = narrow ? 14 : 40
 
   for (const actor of input.actors) {
-    const measured = measureLabel(actor.label)
-    const need = measured.w + 40
+    const lines = actorLines(actor.label, span)
+    let longest = 0
+
+    for (const line of lines) {
+      if (line.length > longest) {
+        longest = line.length
+      }
+    }
+
+    const need = Math.max(MIN_LANE_NARROW, longest * 6.6 + pad)
 
     if (need > content) {
       content = need
@@ -117,8 +143,14 @@ function arrowHead(tipX: number, tipY: number, angle: number, open: boolean): st
   return `<polygon points="${coord(tipX)},${coord(tipY)} ${coord(leftX)},${coord(leftY)} ${coord(rightX)},${coord(rightY)}"/>`
 }
 
-function messageLabel(label: string, number: number, midX: number, lineY: number): string {
-  const lines = wrapLabel(`${String(number)}. ${label}`, 30)
+function messageLabel(
+  label: string,
+  number: number,
+  midX: number,
+  lineY: number,
+  span: number
+): string {
+  const lines = wrapLabel(`${String(number)}. ${label}`, narrowSpan(span) ? 22 : 30)
   let out = ''
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -161,6 +193,15 @@ export function renderSequenceDiagram(
     }
   }
 
+  let headH = HEAD_H
+
+  for (const actor of input.actors) {
+    if (actorLines(actor.label, span).length > 1) {
+      headH = 46
+      break
+    }
+  }
+
   let svg = `<svg viewBox="0 0 ${coord(totalW)} ${coord(height)}" role="presentation" data-span="${coord(span)}"${totalW > span ? ` style="min-width: ${coord(totalW)}px"` : ''}>`
 
   for (let index = 0; index < input.actors.length; index += 1) {
@@ -171,12 +212,28 @@ export function renderSequenceDiagram(
     }
 
     const cx = laneX(lane, index)
+    const lines = actorLines(actor.label, span)
+    let longest = 0
+
+    for (const line of lines) {
+      if (line.length > longest) {
+        longest = line.length
+      }
+    }
+
     const measured = measureLabel(actor.label)
-    const w = Math.min(lane - 16, measured.w)
+    const need = longest * 6.6 + 30
+    const w = Math.min(lane - 10, Math.min(measured.w, need))
     svg += `<line x1="${coord(cx)}" y1="${coord(LANE_TOP)}" x2="${coord(cx)}" y2="${coord(bodyBottom)}" class="lane"/>`
     svg += `<g class="node actor" data-node="${escapeAttr(actor.id)}" tabindex="0" role="button" aria-label="actor ${escapeAttr(actor.label)}">`
-    svg += `<rect x="${coord(cx - w / 2)}" y="8" width="${coord(w)}" height="${HEAD_H}" class="nrect"/>`
-    svg += `<text x="${coord(cx)}" y="${coord(8 + HEAD_H / 2 + 4)}" text-anchor="middle" class="ntext">${escapeHtml(actor.label)}</text></g>`
+    svg += `<rect x="${coord(cx - w / 2)}" y="8" width="${coord(w)}" height="${headH}" class="nrect"/>`
+
+    if (lines.length === 1) {
+      svg += `<text x="${coord(cx)}" y="${coord(8 + headH / 2 + 4)}" text-anchor="middle" class="ntext">${escapeHtml(lines[0] ?? '')}</text></g>`
+    } else {
+      svg += `<text x="${coord(cx)}" y="${coord(8 + headH / 2 - 3)}" text-anchor="middle" class="ntext">${escapeHtml(lines[0] ?? '')}</text>`
+      svg += `<text x="${coord(cx)}" y="${coord(8 + headH / 2 + 10)}" text-anchor="middle" class="ntext">${escapeHtml(lines[1] ?? '')}</text></g>`
+    }
   }
 
   for (const row of rows) {
@@ -216,7 +273,7 @@ export function renderSequenceDiagram(
 
     if (message.from === message.to) {
       const endX = fromX + 30
-      svg += messageLabel(message.label, number, endX + 4, lineY - 6)
+      svg += messageLabel(message.label, number, endX + 4, lineY - 6, span)
       svg += `<path class="${lineCls}" d="M${coord(fromX)} ${coord(lineY)} H${coord(endX)} V${coord(lineY + 20)} H${coord(fromX + ARROW_LEN)}"/>`
       svg += arrowHead(fromX, lineY + 20, Math.PI, kind !== 'sync')
     } else {
@@ -224,7 +281,7 @@ export function renderSequenceDiagram(
       const tipX = toX
       const endX = leftToRight ? toX - ARROW_LEN : toX + ARROW_LEN
       const angle = leftToRight ? 0 : Math.PI
-      svg += messageLabel(message.label, number, (fromX + toX) / 2, lineY)
+      svg += messageLabel(message.label, number, (fromX + toX) / 2, lineY, span)
       svg += `<path class="${lineCls}" d="M${coord(fromX)} ${coord(lineY)} H${coord(endX)}"/>`
       svg += arrowHead(tipX, lineY, angle, kind !== 'sync')
     }

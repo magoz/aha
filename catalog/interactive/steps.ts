@@ -293,8 +293,21 @@ function renderSteps(request: MarkupRenderRequest): Effect.Effect<string, BlockD
     body += `<li data-step="${escapeAttr(item.title)}"${item.durationSec === null ? '' : ` data-duration="${String(item.durationSec)}"`}><div class="step-h" data-aha-generated="true"><span class="t">${escapeHtml(item.title)}</span>${dur}</div>${item.inner}</li>`
   }
 
+  let widthAttr = ''
+
+  for (const attr of request.attributes) {
+    if (attr.name === 'data-width') {
+      const parsed = Number.parseInt(attr.value, 10)
+
+      if (Number.isSafeInteger(parsed)) {
+        const clamped = Math.min(1200, Math.max(280, parsed))
+        widthAttr = ` data-width="${String(clamped)}"`
+      }
+    }
+  }
+
   return Effect.succeed(
-    `<ol data-aha="steps" class="aha-steps" data-steps-id="${escapeAttr(request.idPrefix)}">${body}</ol>`
+    `<ol data-aha="steps" class="aha-steps" data-steps-id="${escapeAttr(request.idPrefix)}"${widthAttr}>${body}</ol>`
   )
 }
 

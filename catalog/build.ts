@@ -77,7 +77,8 @@ function renderFoundBlock(
   block: FoundBlock,
   index: number,
   idPrefix: string,
-  depth: number
+  depth: number,
+  parentWidth: number | null
 ): Effect.Effect<RenderedTree, UnknownComponentError | BlockDecodeError> {
   return Effect.gen(function* () {
     const component = findCatalogComponent(block.name)
@@ -99,7 +100,7 @@ function renderFoundBlock(
       }
 
       const payload = yield* parseJsonPayload(block, index)
-      const width = readBlockWidth(block.openTag) ?? 640
+      const width = readBlockWidth(block.openTag) ?? parentWidth ?? 640
 
       const rendered = yield* component.renderJson({
         blockIndex: index,
@@ -132,7 +133,8 @@ function renderFoundBlock(
     let nestedUsed: ReadonlyArray<string> = []
 
     if (depth < MAX_NEST_DEPTH) {
-      const nested = yield* renderBlockTree(block.inner, `${idPrefix}-in`, depth + 1)
+      const markupWidth = readBlockWidth(block.openTag) ?? parentWidth
+      const nested = yield* renderBlockTree(block.inner, `${idPrefix}-in`, depth + 1, markupWidth)
       innerHtml = nested.html
       nestedUsed = nested.used
     }
@@ -153,13 +155,14 @@ function renderFoundBlock(
 function renderBlockTree(
   source: string,
   prefix: string,
-  depth: number
+  depth: number,
+  parentWidth: number | null = null
 ): Effect.Effect<RenderedTree, UnknownComponentError | BlockDecodeError> {
   return Effect.gen(function* () {
     const blocks = findRootBlocks(source)
 
     const rendered = yield* Effect.forEach(blocks, (block, index) =>
-      renderFoundBlock(block, index, `${prefix}-${String(index)}-${block.name}`, depth)
+      renderFoundBlock(block, index, `${prefix}-${String(index)}-${block.name}`, depth, parentWidth)
     )
 
     const html = spliceBlocks(

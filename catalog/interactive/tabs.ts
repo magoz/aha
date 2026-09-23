@@ -63,8 +63,21 @@ function renderTabs(request: MarkupRenderRequest): Effect.Effect<string, BlockDe
     body += `<section data-tab="${escapeAttr(section.label)}"><h3 class="tab-h" data-aha-generated="true">${escapeHtml(section.label)}</h3>${section.inner}</section>`
   }
 
+  let widthAttr = ''
+
+  for (const attr of request.attributes) {
+    if (attr.name === 'data-width') {
+      const parsed = Number.parseInt(attr.value, 10)
+
+      if (Number.isSafeInteger(parsed)) {
+        const clamped = Math.min(1200, Math.max(280, parsed))
+        widthAttr = ` data-width="${String(clamped)}"`
+      }
+    }
+  }
+
   return Effect.succeed(
-    `<div data-aha="tabs" class="aha-tabs" data-tabs-id="${escapeAttr(request.idPrefix)}">${body}</div>`
+    `<div data-aha="tabs" class="aha-tabs" data-tabs-id="${escapeAttr(request.idPrefix)}"${widthAttr}>${body}</div>`
   )
 }
 

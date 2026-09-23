@@ -1,4 +1,4 @@
-import { enhanceChart, observeContainerWidth } from '../shared/chart-client.js'
+import { enhanceChart, observeContainerWidth, svgViewWidth } from '../shared/chart-client.js'
 import type { ChartStop } from '../shared/chart-client.js'
 import { parseJsonRecord } from '../shared/guards.js'
 import { decodeTimeStripsJson } from './time-strips-codec.js'
@@ -107,6 +107,13 @@ function initFigure(figure: HTMLElement): void {
     getSvg: () => chart.querySelector('svg'),
     getStops: () => stopsFor(figure)
   })
+
+  const liveWidth = Math.round(chart.getBoundingClientRect().width)
+  const renderedWidth = svgViewWidth(chart.querySelector('svg'))
+
+  if (liveWidth > 0 && renderedWidth > 0 && Math.abs(renderedWidth - liveWidth) >= 24) {
+    rerender(figure)
+  }
 
   let frame = 0
   let lastWidth = Math.round(chart.getBoundingClientRect().width)

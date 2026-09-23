@@ -27,7 +27,13 @@ export interface FlowRenderOptions {
 export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOptions): string {
   const width = Math.max(300, options.width)
   const direction = directionFor(input.direction, width)
-  const layout = layoutGraph(input.nodes, input.edges, { direction, span: width })
+  const groupOrder: Array<string> = []
+
+  for (const group of input.groups ?? []) {
+    groupOrder.push(group.id)
+  }
+
+  const layout = layoutGraph(input.nodes, input.edges, { direction, span: width, groupOrder })
   const highlight: ReadonlyArray<string> = input.highlight ?? []
 
   let groups = ''
@@ -60,6 +66,16 @@ export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOp
     groups += `<text x="${coord(bounds.x + 10)}" y="${coord(bounds.y + 16)}">${escapeHtml(group.label)}</text></g>`
   }
 
+  for (const edge of layout.edges) {
+    if (edge.label !== null) {
+      const w = edge.label.length * 6.4 + 12
+      viewMinX = Math.min(viewMinX, edge.labelX - w / 2 - 4)
+      viewMinY = Math.min(viewMinY, edge.labelY - 14)
+      viewMaxX = Math.max(viewMaxX, edge.labelX + w / 2 + 4)
+      viewMaxY = Math.max(viewMaxY, edge.labelY + 6)
+    }
+  }
+
   let edges = ''
 
   for (const edge of layout.edges) {
@@ -77,7 +93,9 @@ export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOp
     })
   }
 
-  const svg = `<svg viewBox="${coord(viewMinX)} ${coord(viewMinY)} ${coord(viewMaxX - viewMinX)} ${coord(viewMaxY - viewMinY)}" role="presentation" data-direction="${direction}">${groups}${edges}${nodes}</svg>`
+  const viewW = viewMaxX - viewMinX
+  const minStyle = viewW > width ? ` style="min-width: ${coord(viewW)}px"` : ''
+  const svg = `<svg viewBox="${coord(viewMinX)} ${coord(viewMinY)} ${coord(viewW)} ${coord(viewMaxY - viewMinY)}" role="presentation" data-direction="${direction}"${minStyle}>${groups}${edges}${nodes}</svg>`
 
   const names: Array<string> = []
 
@@ -92,5 +110,5 @@ export function renderFlowDiagram(input: FlowDiagramInput, options: FlowRenderOp
 
   const title = input.title === undefined ? '' : `<p class="dtitle">${escapeHtml(input.title)}</p>`
 
-  return `<div class="aha-diagram aha-flow" data-diagram="flow-diagram" data-diagram-id="${escapeAttr(options.idPrefix)}" tabindex="0" role="img" aria-label="${escapeAttr(aria)}">${title}${svg}</div>`
+  return `<div class="aha-diagram aha-flow" data-diagram="flow-diagram" data-diagram-id="${escapeAttr(options.idPrefix)}" tabindex="0" role="img" aria-label="${escapeAttr(aria)}">${title}<div class="swrap">${svg}</div></div>`
 }

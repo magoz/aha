@@ -11,6 +11,7 @@ import { coord, escapeAttr, escapeHtml } from '../shared/svg.js'
 export interface LayoutNodeInput {
   readonly id: string
   readonly label: string
+  readonly group?: string | undefined
 }
 
 export interface LayoutEdgeInput {
@@ -25,6 +26,8 @@ export interface GraphLayoutOptions {
   readonly direction: GraphDirection
   /** Container width in px; the layout sizes to it 1:1 when it fits. */
   readonly span: number
+  /** Group ids in band order; when omitted the band order follows first appearance. */
+  readonly groupOrder?: ReadonlyArray<string> | undefined
 }
 
 export interface PlacedBox {
@@ -497,6 +500,201 @@ function arrowPoints(tipX: number, tipY: number, angle: number): string {
   return `${coord(tipX)},${coord(tipY)} ${coord(leftX)},${coord(leftY)} ${coord(rightX)},${coord(rightY)}`
 }
 
+const BAND_SEP_LR = 22
+
+const BAND_SEP_TB = 20
+
+const LABEL_CHAR_W = 6.4
+
+interface LabelRect {
+  readonly x0: number
+  readonly y0: number
+  readonly x1: number
+  readonly y1: number
+}
+
+function estimateLabelWidth(label: string): number {
+  return label.length * LABEL_CHAR_W + 12
+}
+
+function labelRectAt(x: number, y: number, w: number): LabelRect {
+  return { x0: x - w / 2, y0: y - 11, x1: x + w / 2, y1: y + 3 }
+}
+
+function rectsOverlap(left: LabelRect, right: LabelRect): boolean {
+  return left.x0 < right.x1 && right.x0 < left.x1 && left.y0 < right.y1 && right.y0 < left.y1
+}
+
+function labelHitsNode(x: number, y: number, w: number, boxes: ReadonlyArray<PlacedBox>): boolean {
+  const rect = labelRectAt(x, y, w)
+  const pad = 5
+
+  for (const box of boxes) {
+    const expanded: LabelRect = {
+      x0: box.x - pad,
+      y0: box.y - pad,
+      x1: box.x + box.w + pad,
+      y1: box.y + box.h + pad
+    }
+
+    if (rectsOverlap(rect, expanded)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function labelHitsFrameEdge(
+  x: number,
+  y: number,
+  w: number,
+  frames: ReadonlyArray<GroupBounds>
+): boolean {
+  const rect = labelRectAt(x, y, w)
+  const pad = 4
+
+  for (const frame of frames) {
+    const left: LabelRect = {
+      x0: frame.x - pad,
+      y0: frame.y - pad,
+      x1: frame.x + pad,
+      y1: frame.y + frame.h + pad
+    }
+
+    const right: LabelRect = {
+      x0: frame.x + frame.w - pad,
+      y0: frame.y - pad,
+      x1: frame.x + frame.w + pad,
+      y1: frame.y + frame.h + pad
+    }
+
+    const top: LabelRect = {
+      x0: frame.x - pad,
+      y0: frame.y - pad,
+      x1: frame.x + frame.w + pad,
+      y1: frame.y + pad
+    }
+
+    const bottom: LabelRect = {
+      x0: frame.x - pad,
+      y0: frame.y + frame.h - pad,
+      x1: frame.x + frame.w + pad,
+      y1: frame.y + frame.h + pad
+    }
+
+    if (
+      rectsOverlap(rect, left) ||
+      rectsOverlap(rect, right) ||
+      rectsOverlap(rect, top) ||
+      rectsOverlap(rect, bottom)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/** Band order for cluster-aware placement: first-appearance order, with
+ * grouped bands sorted by the given group order but the ungrouped band
+ * kept where it first appears so shared nodes sit near their callers. */
+function bandOrderFor(
+  nodes: ReadonlyArray<LayoutNodeInput>,
+  groupOrder: ReadonlyArray<string> | undefined
+): Array<string | null> {
+  const appearance: Array<string | null> = []
+
+  for (const node of nodes) {
+    const band = bandOf(node)
+    let found = false
+
+    for (const known of appearance) {
+      if (known === band) {
+        found = true
+        break
+      }
+    }
+
+    if (!found) {
+      appearance.push(band)
+    }
+  }
+
+  if (groupOrder === undefined || groupOrder.length === 0) {
+    return appearance
+  }
+
+  const groupedInAppearance: Array<string> = []
+
+  for (const band of appearance) {
+    if (band !== null) {
+      groupedInAppearance.push(band)
+    }
+  }
+
+  const sorted: Array<string> = []
+
+  for (const id of groupOrder) {
+    for (const known of groupedInAppearance) {
+      if (known === id) {
+        sorted.push(id)
+        break
+      }
+    }
+  }
+
+  for (const known of groupedInAppearance) {
+    let included = false
+
+    for (const id of sorted) {
+      if (id === known) {
+        included = true
+        break
+      }
+    }
+
+    if (!included) {
+      sorted.push(known)
+    }
+  }
+
+  const out: Array<string | null> = []
+  let sortedAt = 0
+
+  for (const band of appearance) {
+    if (band === null) {
+      out.push(null)
+      continue
+    }
+
+    const next = sorted[sortedAt]
+    sortedAt += 1
+
+    if (next !== undefined) {
+      out.push(next)
+    }
+  }
+
+  return out
+}
+
+function bandOf(node: LayoutNodeInput): string | null {
+  return node.group ?? null
+}
+
+function hasGroupedBands(bands: ReadonlyArray<string | null>): boolean {
+  let grouped = 0
+
+  for (const band of bands) {
+    if (band !== null) {
+      grouped += 1
+    }
+  }
+
+  return grouped >= 2
+}
+
 export function layoutGraph(
   nodes: ReadonlyArray<LayoutNodeInput>,
   edges: ReadonlyArray<LayoutEdgeInput>,
@@ -612,88 +810,291 @@ export function layoutGraph(
       }
     }
 
-    height = topPad + tallest + PAD
+    const bands = bandOrderFor(nodes, options.groupOrder)
+    const useBands = hasGroupedBands(bands)
 
-    for (let depth = 0; depth <= maxLayer; depth += 1) {
-      const members = membersByLayer[depth] ?? []
-      let block = 0
+    if (!useBands) {
+      height = topPad + tallest + PAD
 
-      for (const member of members) {
-        block += (heights[member] ?? SINGLE_H) + GAP_Y_LR
-      }
+      for (let depth = 0; depth <= maxLayer; depth += 1) {
+        const members = membersByLayer[depth] ?? []
+        let block = 0
 
-      if (members.length > 0) {
-        block -= GAP_Y_LR
-      }
-
-      let y = topPad + (tallest - block) / 2
-
-      for (const member of members) {
-        const box = boxes[member]
-
-        if (box === undefined) {
-          continue
+        for (const member of members) {
+          block += (heights[member] ?? SINGLE_H) + GAP_Y_LR
         }
 
-        boxes[member] = {
-          ...box,
-          x: (layerX[depth] ?? PAD) + ((layerW[depth] ?? box.w) - box.w) / 2,
-          y
+        if (members.length > 0) {
+          block -= GAP_Y_LR
         }
-        y += box.h + GAP_Y_LR
+
+        let y = topPad + (tallest - block) / 2
+
+        for (const member of members) {
+          const box = boxes[member]
+
+          if (box === undefined) {
+            continue
+          }
+
+          boxes[member] = {
+            ...box,
+            x: (layerX[depth] ?? PAD) + ((layerW[depth] ?? box.w) - box.w) / 2,
+            y
+          }
+          y += box.h + GAP_Y_LR
+        }
+      }
+    } else {
+      const bandContentH: Array<number> = []
+      const bandHeight: Array<number> = []
+
+      for (const band of bands) {
+        let maxRows = 0
+
+        for (let depth = 0; depth <= maxLayer; depth += 1) {
+          const members = membersByLayer[depth] ?? []
+          let rows = 0
+
+          for (const member of members) {
+            if (bandOf(nodes[member] ?? { id: '', label: '' }) === band) {
+              rows += 1
+            }
+          }
+
+          if (rows > maxRows) {
+            maxRows = rows
+          }
+        }
+
+        const content = maxRows === 0 ? 0 : maxRows * DOUBLE_H + (maxRows - 1) * GAP_Y_LR
+        bandContentH.push(content)
+        bandHeight.push(content + (band === null ? 10 : GROUP_TOP + 18))
+      }
+
+      let bandTop = PAD
+      const bandTopOf: Array<number> = []
+
+      for (let bi = 0; bi < bands.length; bi += 1) {
+        bandTopOf.push(bandTop)
+        bandTop += (bandHeight[bi] ?? 0) + (bi + 1 < bands.length ? BAND_SEP_LR : 0)
+      }
+
+      height = bandTop + PAD
+
+      for (let bi = 0; bi < bands.length; bi += 1) {
+        const band = bands[bi]
+        const top = (bandTopOf[bi] ?? PAD) + (band === null ? 5 : GROUP_TOP + 4)
+        const content = bandContentH[bi] ?? 0
+
+        for (let depth = 0; depth <= maxLayer; depth += 1) {
+          const members = membersByLayer[depth] ?? []
+          const inBand: Array<number> = []
+
+          for (const member of members) {
+            if (bandOf(nodes[member] ?? { id: '', label: '' }) === band) {
+              inBand.push(member)
+            }
+          }
+
+          inBand.sort((left, right) => (slot[left] ?? 0) - (slot[right] ?? 0) || left - right)
+          let total = 0
+
+          for (const member of inBand) {
+            total += (heights[member] ?? SINGLE_H) + GAP_Y_LR
+          }
+
+          if (inBand.length > 0) {
+            total -= GAP_Y_LR
+          }
+
+          let y = top + (content - total) / 2
+
+          for (const member of inBand) {
+            const box = boxes[member]
+
+            if (box === undefined) {
+              continue
+            }
+
+            boxes[member] = {
+              ...box,
+              x: (layerX[depth] ?? PAD) + ((layerW[depth] ?? box.w) - box.w) / 2,
+              y
+            }
+            y += box.h + GAP_Y_LR
+          }
+        }
       }
     }
   } else {
-    let widest = 0
+    const tbBands = bandOrderFor(nodes, options.groupOrder)
+    const useTbBands = hasGroupedBands(tbBands)
 
-    for (const box of boxes) {
-      if (box.w > widest) {
-        widest = box.w
-      }
-    }
+    if (!useTbBands) {
+      let widest = 0
 
-    const pitch = widest + GAP_X_TB
-
-    for (let depth = 0; depth <= maxLayer; depth += 1) {
-      const members: Array<number> = []
-
-      for (let index = 0; index < count; index += 1) {
-        if ((layer[index] ?? 0) === depth) {
-          members.push(index)
+      for (const box of boxes) {
+        if (box.w > widest) {
+          widest = box.w
         }
       }
 
-      members.sort((left, right) => (slot[left] ?? 0) - (slot[right] ?? 0) || left - right)
-      const block = members.length * pitch - GAP_X_TB
-      let cx = width / 2 - block / 2
+      const pitch = widest + GAP_X_TB
 
-      for (const member of members) {
-        const box = boxes[member]
+      for (let depth = 0; depth <= maxLayer; depth += 1) {
+        const members: Array<number> = []
 
-        if (box === undefined) {
-          continue
+        for (let index = 0; index < count; index += 1) {
+          if ((layer[index] ?? 0) === depth) {
+            members.push(index)
+          }
         }
 
-        boxes[member] = {
-          ...box,
-          x: cx + (pitch - box.w) / 2,
-          y: topPad + depth * (DOUBLE_H + GAP_Y_TB)
+        members.sort((left, right) => (slot[left] ?? 0) - (slot[right] ?? 0) || left - right)
+        const block = members.length * pitch - GAP_X_TB
+        let cx = width / 2 - block / 2
+
+        for (const member of members) {
+          const box = boxes[member]
+
+          if (box === undefined) {
+            continue
+          }
+
+          boxes[member] = {
+            ...box,
+            x: cx + (pitch - box.w) / 2,
+            y: topPad + depth * (DOUBLE_H + GAP_Y_TB)
+          }
+          cx += pitch
         }
-        cx += pitch
       }
-    }
 
-    let deepest = 0
+      let deepest = 0
 
-    for (const box of boxes) {
-      const bottom = box.y + box.h
+      for (const box of boxes) {
+        const bottom = box.y + box.h
 
-      if (bottom > deepest) {
-        deepest = bottom
+        if (bottom > deepest) {
+          deepest = bottom
+        }
       }
-    }
 
-    height = deepest + PAD
+      height = deepest + PAD
+    } else {
+      const bandContentW: Array<number> = []
+      const bandWidth: Array<number> = []
+
+      for (const band of tbBands) {
+        let best = 0
+
+        for (let depth = 0; depth <= maxLayer; depth += 1) {
+          let total = 0
+          let rows = 0
+
+          for (let index = 0; index < count; index += 1) {
+            if ((layer[index] ?? 0) !== depth) {
+              continue
+            }
+
+            if (bandOf(nodes[index] ?? { id: '', label: '' }) !== band) {
+              continue
+            }
+
+            total += (widths[index] ?? MIN_BOX_W) + GAP_X_TB
+            rows += 1
+          }
+
+          if (rows > 0) {
+            total -= GAP_X_TB
+          }
+
+          if (total > best) {
+            best = total
+          }
+        }
+
+        bandContentW.push(best)
+        bandWidth.push(best + (band === null ? 10 : 30))
+      }
+
+      let bandX = PAD
+      const bandXOf: Array<number> = []
+
+      for (let bi = 0; bi < tbBands.length; bi += 1) {
+        bandXOf.push(bandX)
+        bandX += (bandWidth[bi] ?? 0) + (bi + 1 < tbBands.length ? BAND_SEP_TB : 0)
+      }
+
+      const naturalW = bandX + PAD
+
+      if (naturalW > width) {
+        width = naturalW
+      }
+
+      for (let bi = 0; bi < tbBands.length; bi += 1) {
+        const band = tbBands[bi]
+        const left = (bandXOf[bi] ?? PAD) + (band === null ? 5 : 15)
+        const content = bandContentW[bi] ?? 0
+
+        for (let depth = 0; depth <= maxLayer; depth += 1) {
+          const inBand: Array<number> = []
+
+          for (let index = 0; index < count; index += 1) {
+            if ((layer[index] ?? 0) !== depth) {
+              continue
+            }
+
+            if (bandOf(nodes[index] ?? { id: '', label: '' }) !== band) {
+              continue
+            }
+
+            inBand.push(index)
+          }
+
+          inBand.sort((l, r) => (slot[l] ?? 0) - (slot[r] ?? 0) || l - r)
+          let total = 0
+
+          for (const member of inBand) {
+            total += (widths[member] ?? MIN_BOX_W) + GAP_X_TB
+          }
+
+          if (inBand.length > 0) {
+            total -= GAP_X_TB
+          }
+
+          let cx = left + (content - total) / 2
+
+          for (const member of inBand) {
+            const box = boxes[member]
+
+            if (box === undefined) {
+              continue
+            }
+
+            boxes[member] = {
+              ...box,
+              x: cx,
+              y: topPad + depth * (DOUBLE_H + GAP_Y_TB)
+            }
+            cx += box.w + GAP_X_TB
+          }
+        }
+      }
+
+      let deepest = 0
+
+      for (const box of boxes) {
+        const bottom = box.y + box.h
+
+        if (bottom > deepest) {
+          deepest = bottom
+        }
+      }
+
+      height = deepest + PAD
+    }
   }
 
   for (let index = 0; index < count; index += 1) {
@@ -837,7 +1238,201 @@ export function layoutGraph(
     }
   }
 
+  const collisionFrames: Array<GroupBounds> = []
+  const collisionBands = bandOrderFor(nodes, options.groupOrder)
+
+  for (const band of collisionBands) {
+    if (band === null) {
+      continue
+    }
+
+    let minX = Number.POSITIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let maxY = Number.NEGATIVE_INFINITY
+    let found = false
+
+    for (let bi = 0; bi < count; bi += 1) {
+      if (bandOf(nodes[bi] ?? { id: '', label: '' }) !== band) {
+        continue
+      }
+
+      const box = boxes[bi]
+
+      if (box === undefined) {
+        continue
+      }
+
+      found = true
+
+      if (box.x < minX) {
+        minX = box.x
+      }
+
+      if (box.y < minY) {
+        minY = box.y
+      }
+
+      if (box.x + box.w > maxX) {
+        maxX = box.x + box.w
+      }
+
+      if (box.y + box.h > maxY) {
+        maxY = box.y + box.h
+      }
+    }
+
+    if (found) {
+      collisionFrames.push({
+        x: minX - 14,
+        y: minY - GROUP_TOP + 8,
+        w: maxX - minX + 28,
+        h: maxY - minY + GROUP_TOP + 6
+      })
+    }
+  }
+
+  resolveEdgeLabelCollisions(placedEdges, boxes, index, options.direction, collisionFrames)
+
   return { boxes, edges: placedEdges, width, height, direction: options.direction }
+}
+
+/** Nudge edge labels off nodes, frame edges and each other. Labels try
+ * positions along their edge first, then perpendicular offsets; the halo
+ * in CSS keeps the winner readable. Deterministic in edge order. */
+function resolveEdgeLabelCollisions(
+  placedEdges: Array<PlacedEdge>,
+  boxes: ReadonlyArray<PlacedBox>,
+  index: Map<string, number>,
+  direction: GraphDirection,
+  frames: ReadonlyArray<GroupBounds>
+): void {
+  const placed: Array<LabelRect> = []
+
+  for (let ei = 0; ei < placedEdges.length; ei += 1) {
+    const edge = placedEdges[ei]
+
+    if (edge === undefined || edge.label === null) {
+      continue
+    }
+
+    const w = estimateLabelWidth(edge.label)
+    const fromIdx = index.get(edge.from)
+    const toIdx = index.get(edge.to)
+    const source = fromIdx === undefined ? undefined : boxes[fromIdx]
+    const target = toIdx === undefined ? undefined : boxes[toIdx]
+
+    const candidates: Array<{ readonly x: number; readonly y: number }> = []
+
+    if (!edge.self && !edge.back && source !== undefined && target !== undefined) {
+      let x1 = 0
+      let y1 = 0
+      let x2 = 0
+      let y2 = 0
+
+      if (direction === 'lr') {
+        x1 = source.x + source.w
+        y1 = source.y + source.h / 2
+        x2 = target.x
+        y2 = target.y + target.h / 2
+      } else {
+        x1 = source.x + source.w / 2
+        y1 = source.y + source.h
+        x2 = target.x + target.w / 2
+        y2 = target.y
+      }
+
+      const dx = x2 - x1
+      const dy = y2 - y1
+      const len = Math.sqrt(dx * dx + dy * dy)
+      const nx = len === 0 ? 0 : -dy / len
+      const ny = len === 0 ? 1 : dx / len
+      const steps: Array<number> = [0.5, 0.32, 0.68, 0.2, 0.8]
+      const offsets: Array<number> = [0, -9, 9, -18, 18]
+
+      for (const t of steps) {
+        for (const off of offsets) {
+          candidates.push({ x: x1 + dx * t + nx * off, y: y1 + dy * t + ny * off - 6 })
+        }
+      }
+    } else {
+      const baseX = edge.labelX
+      const baseY = edge.labelY
+      const shifts: Array<number> = [0, -10, 10, -20, 20]
+      const rises: Array<number> = [0, -8, 8, -16, 16]
+
+      for (const dy of rises) {
+        for (const dx of shifts) {
+          candidates.push({ x: baseX + dx, y: baseY + dy })
+        }
+      }
+    }
+
+    let chosenX = edge.labelX
+    let chosenY = edge.labelY
+    let settled = false
+
+    for (const candidate of candidates) {
+      const x = Math.round(candidate.x * 10) / 10
+      const y = Math.round(candidate.y * 10) / 10
+      const rect = labelRectAt(x, y, w)
+      let hits = false
+
+      if (labelHitsNode(x, y, w, boxes)) {
+        hits = true
+      }
+
+      if (!hits && labelHitsFrameEdge(x, y, w, frames)) {
+        hits = true
+      }
+
+      if (!hits) {
+        for (const other of placed) {
+          const grown: LabelRect = {
+            x0: other.x0 - 3,
+            y0: other.y0 - 3,
+            x1: other.x1 + 3,
+            y1: other.y1 + 3
+          }
+
+          if (rectsOverlap(rect, grown)) {
+            hits = true
+            break
+          }
+        }
+      }
+
+      if (!hits) {
+        chosenX = x
+        chosenY = y
+        settled = true
+        break
+      }
+    }
+
+    if (!settled) {
+      for (const candidate of candidates) {
+        const rect = labelRectAt(candidate.x, candidate.y, w)
+        let hitsOther = false
+
+        for (const other of placed) {
+          if (rectsOverlap(rect, other)) {
+            hitsOther = true
+            break
+          }
+        }
+
+        if (!hitsOther && !labelHitsNode(candidate.x, candidate.y, w, boxes)) {
+          chosenX = Math.round(candidate.x * 10) / 10
+          chosenY = Math.round(candidate.y * 10) / 10
+          break
+        }
+      }
+    }
+
+    placed.push(labelRectAt(chosenX, chosenY, w))
+    placedEdges[ei] = { ...edge, labelX: chosenX, labelY: chosenY }
+  }
 }
 
 export interface GroupBounds {

@@ -15,6 +15,12 @@ export const SEQUENCE_DIAGRAM_CSS = `${DIAGRAM_CSS}
 .aha-sequence .edge:focus { outline: none; }
 .aha-sequence .edge:focus .mline { stroke: var(--accent); stroke-width: 2; }
 .aha-sequence .mlbl { font-family: var(--mono); font-size: 11px; fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 3px; }
+.aha-sequence { container-type: inline-size; }
+@container (max-width: 30rem) {
+  .aha-sequence .mlbl { font-size: 10px; }
+  .aha-sequence .node .ntext { font-size: 10px; }
+  .aha-sequence .snote .ntext { font-size: 10px; }
+}
 .aha-sequence .edge.hi .mlbl { fill: var(--accent); }
 .aha-sequence .snote rect { fill: var(--paper); stroke: var(--rule); stroke-width: 1; }
 .aha-sequence .snote .ntext { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
