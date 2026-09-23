@@ -24,7 +24,7 @@ page in one pass, and preview once more only after a fix.
 
    **Use catalog components for charts, diagrams, tables and controls**
    instead of hand-writing SVG or scripts. `aha components` lists them
-   (charts, data, diagrams, interactive, text); `aha components <name>` prints
+   (charts, data, diagrams, interactive, research, code, plans, text); `aha components <name>` prints
    the fields and a paste-ready block. A block is only data:
 
    ```html
@@ -37,7 +37,7 @@ page in one pass, and preview once more only after a fix.
    ```
 
    Prose-wrapping components (`callout`, `tabs`, `scenarios`, `steps`,
-   `checklist`, `definition-list`) take child markup instead; `scenarios` and
+   `checklist`, `definition-list`, `faq`, `quote`) take child markup instead; `scenarios` and
    `tabs` sections may contain other blocks. Hand-write SVG or script only for
    a one-off visual no component covers.
 
