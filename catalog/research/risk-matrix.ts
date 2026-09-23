@@ -141,6 +141,7 @@ export const riskMatrixComponent: CatalogComponent = {
   category: 'research',
   summary: 'Risks plotted as numbered markers on a small grid, with mitigations and owners.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(RiskMatrixSchema),
   css: RISK_MATRIX_CSS,
   clientBundle: 'risk-matrix.client.js',

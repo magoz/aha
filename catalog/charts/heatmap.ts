@@ -98,6 +98,7 @@ export const heatmapComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Matrix of values over two categorical axes with a sequential scale and legend.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(HeatmapSchema),
   css: HEATMAP_CSS,
   clientBundle: 'heatmap.client.js',

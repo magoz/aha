@@ -278,6 +278,7 @@ export const checklistComponent: CatalogComponent = {
   category: 'interactive',
   summary: 'Checkable items in optional groups with a live progress count.',
   inputKind: 'markup',
+  markupTag: 'ul',
   fields: CHECKLIST_FIELDS,
   css: CHECKLIST_CSS,
   clientBundle: 'checklist.client.js',

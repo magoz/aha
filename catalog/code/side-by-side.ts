@@ -148,6 +148,7 @@ export const sideBySideComponent: CatalogComponent = {
   category: 'code',
   summary: 'Two labelled text or code panes, side by side when wide.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(SideBySideSchema),
   css: SIDE_BY_SIDE_CSS,
   clientBundle: null,

@@ -108,6 +108,7 @@ export const treeDiagramComponent: CatalogComponent = {
   category: 'diagrams',
   summary: 'Hierarchy with collapsible nodes: tidy tree wide, indented list narrow.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(TreeDiagramSchema),
   css: TREE_DIAGRAM_CSS,
   clientBundle: 'tree-diagram.client.js',

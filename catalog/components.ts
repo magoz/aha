@@ -48,9 +48,10 @@ function exampleBlock(name: string): string {
   }
 
   if (component.inputKind === 'markup' && example.markup !== null) {
-    const kind = example.markupKind ?? 'note'
+    const tag = component.markupTag ?? 'div'
+    const kindAttr = example.markupKind === null ? '' : ` data-kind="${example.markupKind}"`
 
-    return `<aside data-aha="${name}" data-kind="${kind}">\n${example.markup}\n</aside>`
+    return `<${tag} data-aha="${name}"${kindAttr}>\n${example.markup}\n</${tag}>`
   }
 
   if (example.json !== null) {

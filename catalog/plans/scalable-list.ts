@@ -112,6 +112,7 @@ export const scalableListComponent: CatalogComponent = {
   category: 'plans',
   summary: 'Quantities for a base yield with a control that rescales them live.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(ScalableListSchema),
   css: SCALABLE_LIST_CSS,
   clientBundle: 'scalable-list.client.js',

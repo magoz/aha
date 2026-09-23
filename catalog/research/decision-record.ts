@@ -169,6 +169,7 @@ export const decisionRecordComponent: CatalogComponent = {
   category: 'research',
   summary: 'One architecture decision record: context, options, the chosen option, consequences.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(DecisionRecordSchema),
   css: DECISION_RECORD_CSS,
   clientBundle: null,

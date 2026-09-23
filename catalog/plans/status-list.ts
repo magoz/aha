@@ -102,6 +102,7 @@ export const statusListComponent: CatalogComponent = {
   category: 'plans',
   summary: 'Tasks with a glyph-plus-word state, owner, due date and a counts summary.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(StatusListSchema),
   css: STATUS_LIST_CSS,
   clientBundle: null,

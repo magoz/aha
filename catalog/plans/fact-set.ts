@@ -104,6 +104,7 @@ export const factSetComponent: CatalogComponent = {
   category: 'plans',
   summary: 'A compact key-value spec sheet with optional groups and muted units.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(FactSetSchema),
   css: FACT_SET_CSS,
   clientBundle: null,

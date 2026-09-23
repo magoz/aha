@@ -125,6 +125,7 @@ export const proportionBarComponent: CatalogComponent = {
   category: 'charts',
   summary: 'One 100% bar or a small set, labelled directly: a stand-in for pie charts.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(ProportionBarSchema),
   css: PROPORTION_BAR_CSS,
   clientBundle: 'proportion-bar.client.js',

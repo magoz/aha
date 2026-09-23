@@ -62,6 +62,7 @@ export const codeDiffComponent: CatalogComponent = {
   category: 'text',
   summary: 'Unified diff with a file header, line numbers and a marker column.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(CodeDiffSchema),
   css: CODE_DIFF_CSS,
   clientBundle: null,

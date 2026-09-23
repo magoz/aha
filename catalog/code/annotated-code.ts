@@ -158,6 +158,7 @@ export const annotatedCodeComponent: CatalogComponent = {
   category: 'code',
   summary: 'Code with numbered line markers linked to notes below or beside it.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(AnnotatedCodeSchema),
   css: ANNOTATED_CODE_CSS,
   clientBundle: 'annotated-code.client.js',

@@ -158,6 +158,7 @@ export const sequenceDiagramComponent: CatalogComponent = {
   category: 'diagrams',
   summary: 'Actors as lifelines with ordered sync, async and return messages plus notes.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(SequenceDiagramSchema),
   css: SEQUENCE_DIAGRAM_CSS,
   clientBundle: 'sequence-diagram.client.js',

@@ -126,6 +126,7 @@ export const barChartComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Vertical or horizontal bars, grouped or stacked, with negatives diverging from zero.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(BarChartSchema),
   css: BAR_CHART_CSS,
   clientBundle: 'bar-chart.client.js',

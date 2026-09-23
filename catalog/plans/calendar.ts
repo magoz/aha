@@ -208,6 +208,7 @@ export const calendarComponent: CatalogComponent = {
   category: 'plans',
   summary: 'A month grid, or a week strip for ranges of ten days or less.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(CalendarSchema),
   css: CALENDAR_CSS,
   clientBundle: 'calendar.client.js',

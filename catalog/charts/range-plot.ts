@@ -73,6 +73,7 @@ export const rangePlotComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Dumbbell per category: before and after (or min and max) with the change shown.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(RangePlotSchema),
   css: RANGE_PLOT_CSS,
   clientBundle: 'range-plot.client.js',

@@ -67,6 +67,7 @@ export const histogramComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Binned distribution with automatic nice bins and an optional marker line.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(HistogramSchema),
   css: HISTOGRAM_CSS,
   clientBundle: 'histogram.client.js',

@@ -87,6 +87,7 @@ export const dataTableComponent: CatalogComponent = {
   category: 'data',
   summary: 'Typed columns with sorting, a highlighted row, and collapse for long tables.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(DataTableSchema),
   css: DATA_TABLE_CSS,
   clientBundle: 'data-table.client.js',

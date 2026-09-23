@@ -53,6 +53,10 @@ export interface CatalogComponent {
   readonly category: string
   readonly summary: string
   readonly inputKind: 'json' | 'markup'
+  /** Natural wrapper tag for markup components (ol, ul, dl, div, aside,
+   * figure); null for JSON components. Single source of truth for the
+   * `aha components` example block and the showcase. */
+  readonly markupTag: string | null
   /** Field docs derived from the component schema annotations. */
   readonly fields: ReadonlyArray<FieldDoc>
   readonly css: string

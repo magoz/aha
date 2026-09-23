@@ -82,6 +82,7 @@ export const scatterPlotComponent: CatalogComponent = {
   category: 'charts',
   summary: 'X/y points with size and group encodings, labels, a trend line and log axes.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(ScatterPlotSchema),
   css: SCATTER_PLOT_CSS,
   clientBundle: 'scatter-plot.client.js',

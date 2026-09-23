@@ -107,6 +107,7 @@ export const tabsComponent: CatalogComponent = {
   category: 'interactive',
   summary: 'Sections switching through an accessible tablist; stacked without scripts.',
   inputKind: 'markup',
+  markupTag: 'div',
   fields: TABS_FIELDS,
   css: TABS_CSS,
   clientBundle: 'tabs.client.js',

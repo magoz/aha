@@ -207,6 +207,7 @@ export const schemaTableComponent: CatalogComponent = {
   category: 'code',
   summary: 'Field table with dotted nested paths and an optional example column.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(SchemaTableSchema),
   css: SCHEMA_TABLE_CSS,
   clientBundle: null,

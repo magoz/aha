@@ -156,6 +156,7 @@ export const claimsComponent: CatalogComponent = {
   category: 'research',
   summary: 'Findings with text confidence badges and [n] links into the sources list.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(ClaimsSchema),
   css: CLAIMS_CSS,
   clientBundle: null,

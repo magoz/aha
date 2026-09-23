@@ -1787,6 +1787,7 @@ export const timeStripsComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Stacked rows sharing one time axis, each with its own small scale.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(TimeStripsSchema),
   css: TIME_STRIPS_CSS,
   clientBundle: 'time-strips.client.js',

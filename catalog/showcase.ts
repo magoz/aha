@@ -40,37 +40,21 @@ function exampleFigure(exampleJson: string, name: string, caption: string, width
   return `<figure data-aha="${name}" data-width="${String(width)}">\n<script type="application/json">${exampleJson}</script>${captionHtml}\n</figure>`
 }
 
-function exampleAside(name: string, markup: string, kind: string, width?: number): string {
-  const tag = markupTagFor(name)
+function exampleAside(
+  name: string,
+  tag: string,
+  markup: string,
+  kind: string,
+  width?: number
+): string {
   const kindAttr = tag === 'aside' ? ` data-kind="${escapeHtml(kind)}"` : ''
   const widthAttr = width === undefined ? '' : ` data-width="${String(width)}"`
 
   return `<${tag} data-aha="${name}"${kindAttr}${widthAttr}>\n${markup}\n</${tag}>`
 }
 
-/** Wrapper tag matching the component's authoring contract: callout wraps
- * prose in an aside, list components use their list element, and the
- * section-based interactive components use a plain div. */
-function markupTagFor(name: string): string {
-  if (name === 'callout') {
-    return 'aside'
-  }
-
-  if (name === 'definition-list') {
-    return 'dl'
-  }
-
-  if (name === 'steps') {
-    return 'ol'
-  }
-
-  if (name === 'checklist') {
-    return 'ul'
-  }
-
-  return 'div'
-}
-
+/** Markup examples render in the component's declared wrapper tag (the
+ * single source of truth is `markupTag` on the component definition). */
 function componentSection(
   name: string,
   summary: string,
@@ -96,15 +80,25 @@ export function authorShowcaseSource(): string {
       for (const example of component.examples) {
         if (component.inputKind === 'markup' && example.markup !== null) {
           const kind = example.markupKind ?? 'note'
-          const block = exampleAside(component.name, example.markup, kind, SHOWCASE_MOBILE_WIDTH)
+          const tag = component.markupTag ?? 'div'
+
+          const block = exampleAside(
+            component.name,
+            tag,
+            example.markup,
+            kind,
+            SHOWCASE_MOBILE_WIDTH
+          )
+
           sections += componentSection(
             `${component.name} · ${example.id}`,
             component.summary,
-            exampleAside(component.name, example.markup, kind, SHOWCASE_DESKTOP_WIDTH),
+            exampleAside(component.name, tag, example.markup, kind, SHOWCASE_DESKTOP_WIDTH),
             block,
             example.markup,
             'Example markup'
           )
+
           continue
         }
 

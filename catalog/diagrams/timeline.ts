@@ -146,6 +146,7 @@ export const timelineComponent: CatalogComponent = {
   category: 'diagrams',
   summary: 'Phases and milestones on a date axis with an optional today marker.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(TimelineSchema),
   css: TIMELINE_CSS,
   clientBundle: 'timeline.client.js',

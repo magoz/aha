@@ -176,6 +176,7 @@ export const faqComponent: CatalogComponent = {
   summary:
     'Questions and answers as native disclosures, with an Expand all control when scripts run.',
   inputKind: 'markup',
+  markupTag: 'div',
   fields: FAQ_FIELDS,
   css: FAQ_CSS,
   clientBundle: 'faq.client.js',

@@ -202,6 +202,7 @@ export const sourcesComponent: CatalogComponent = {
   category: 'research',
   summary: 'Numbered reference list with visible URLs and stable anchors for prose citations.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(SourcesSchema),
   css: SOURCES_CSS,
   clientBundle: null,

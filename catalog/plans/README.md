@@ -24,7 +24,7 @@ component reads fully without scripts and follows the house style.
   per-unit rounding (grams to fives, spoons to quarters, eggs stay whole
   with a minimum of 1); `qty: null` means to taste and never scales.
   Without scripts the base yield reads directly.
-- `quote` — `<div data-aha="quote">` over the quoted prose plus one
+- `quote` — `<figure data-aha="quote">` over the quoted prose plus one
   `<p data-by="Name">` credit paragraph with optional `data-role`,
   `data-source`, `data-source-href` (https only) and `data-date`. A left
   rule and a muted mono caption; no quotation-mark graphics.

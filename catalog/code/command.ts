@@ -123,6 +123,7 @@ export const commandComponent: CatalogComponent = {
   category: 'code',
   summary: 'Shell command with working directory, output lanes and exit code.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(CommandSchema),
   css: COMMAND_CSS,
   clientBundle: 'command.client.js',

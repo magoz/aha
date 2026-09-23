@@ -100,6 +100,7 @@ export const comparisonMatrixComponent: CatalogComponent = {
   category: 'data',
   summary: 'Options by criteria with typed cells and an optional recommended column.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(ComparisonMatrixSchema),
   css: COMPARISON_MATRIX_CSS,
   clientBundle: null,

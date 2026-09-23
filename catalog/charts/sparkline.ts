@@ -64,6 +64,7 @@ export const sparklineComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Tiny inline trend for prose or tables, with last value and min/max markers.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(SparklineSchema),
   css: SPARKLINE_CSS,
   clientBundle: 'sparkline.client.js',

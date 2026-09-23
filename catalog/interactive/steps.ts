@@ -344,6 +344,7 @@ export const stepsComponent: CatalogComponent = {
   category: 'interactive',
   summary: 'Numbered procedure with timed steps, ready cues and a current-step highlight.',
   inputKind: 'markup',
+  markupTag: 'ol',
   fields: STEPS_FIELDS,
   css: STEPS_CSS,
   clientBundle: 'steps.client.js',

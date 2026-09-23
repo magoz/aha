@@ -133,6 +133,7 @@ export const fileTreeComponent: CatalogComponent = {
   category: 'code',
   summary: 'Flat path list grouped into a collapsible tree with status markers.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(FileTreeSchema),
   css: FILE_TREE_CSS,
   clientBundle: 'file-tree.client.js',

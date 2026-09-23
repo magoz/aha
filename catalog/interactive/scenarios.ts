@@ -114,6 +114,7 @@ export const scenariosComponent: CatalogComponent = {
   category: 'interactive',
   summary: 'What-if sections with nested blocks, switching through a segmented control.',
   inputKind: 'markup',
+  markupTag: 'div',
   fields: SCENARIOS_FIELDS,
   css: SCENARIOS_CSS,
   clientBundle: 'scenarios.client.js',

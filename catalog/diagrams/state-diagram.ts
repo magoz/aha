@@ -137,6 +137,7 @@ export const stateDiagramComponent: CatalogComponent = {
   category: 'diagrams',
   summary: 'States and labelled transitions with an initial state and final states.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(StateDiagramSchema),
   css: STATE_DIAGRAM_CSS,
   clientBundle: 'state-diagram.client.js',

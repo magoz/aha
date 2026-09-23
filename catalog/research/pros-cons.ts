@@ -127,6 +127,7 @@ export const prosConsComponent: CatalogComponent = {
   category: 'research',
   summary: 'Two weighted columns for the case for and against, with an optional verdict.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(ProsConsSchema),
   css: PROS_CONS_CSS,
   clientBundle: null,

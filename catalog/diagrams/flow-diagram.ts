@@ -222,6 +222,7 @@ export const flowDiagramComponent: CatalogComponent = {
   category: 'diagrams',
   summary: 'Directed graph of steps or services with optional groups and one highlighted path.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(FlowDiagramSchema),
   css: FLOW_DIAGRAM_CSS,
   clientBundle: 'flow-diagram.client.js',

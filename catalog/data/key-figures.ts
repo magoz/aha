@@ -67,6 +67,7 @@ export const keyFiguresComponent: CatalogComponent = {
   category: 'data',
   summary: 'Two to six headline numbers with signed deltas and sparkline trends.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(KeyFiguresSchema),
   css: KEY_FIGURES_CSS,
   clientBundle: null,

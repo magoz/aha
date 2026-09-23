@@ -156,6 +156,7 @@ export const areaChartComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Stacked or overlapping areas over numeric or time x, with an optional 100% mode.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(AreaChartSchema),
   css: AREA_CHART_CSS,
   clientBundle: 'area-chart.client.js',

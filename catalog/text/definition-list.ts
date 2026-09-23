@@ -172,6 +172,7 @@ export const definitionListComponent: CatalogComponent = {
   category: 'text',
   summary: 'Terms and definitions with a stable anchor on every term.',
   inputKind: 'markup',
+  markupTag: 'dl',
   fields: DEFINITION_LIST_FIELDS,
   css: DEFINITION_LIST_CSS,
   clientBundle: null,

@@ -118,6 +118,7 @@ export const calloutComponent: CatalogComponent = {
   category: 'text',
   summary: 'House callout (note, decision, warning, tip) wrapping author prose.',
   inputKind: 'markup',
+  markupTag: 'aside',
   fields: CALLOUT_FIELDS,
   css: CALLOUT_CSS,
   clientBundle: null,

@@ -129,6 +129,7 @@ export const lineChartComponent: CatalogComponent = {
   category: 'charts',
   summary: 'Multiple series over numeric, time or category x, with optional log scales.',
   inputKind: 'json',
+  markupTag: null,
   fields: describeSchemaFields(LineChartSchema),
   css: LINE_CHART_CSS,
   clientBundle: 'line-chart.client.js',

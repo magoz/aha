@@ -276,6 +276,7 @@ export const quoteComponent: CatalogComponent = {
   category: 'plans',
   summary: 'A pull quote with attribution, role, and an optional source link and date.',
   inputKind: 'markup',
+  markupTag: 'figure',
   fields: QUOTE_FIELDS,
   css: QUOTE_CSS,
   clientBundle: null,
