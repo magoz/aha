@@ -8,9 +8,9 @@ instruction.
 
 ## Workflow
 
-This skill, the chosen template and the preview output are all the context
-needed. Don't explore the CLI or repository source, write the page in one
-pass, and preview once more only after a fix.
+This skill, the chosen template, `aha components` and the preview output are
+all the context needed. Don't explore the CLI or repository source, write the
+page in one pass, and preview once more only after a fix.
 
 1. Write one self-contained `.html` file: inline `<style>` and optional inline
    `<script>` (use `addEventListener`; `onclick=`-style attributes are
@@ -21,10 +21,36 @@ pass, and preview once more only after a fix.
    Start from `templates/note.html` (short) or `templates/plan.html` (long) in
    this repository and follow the
    [document style](#document-style) below.
-2. Check it under the production CSP (about 2 s; pass an absolute path):
+
+   **Use catalog components for charts, diagrams, tables and controls**
+   instead of hand-writing SVG or scripts. `aha components` lists them
+   (charts, data, diagrams, interactive, text); `aha components <name>` prints
+   the fields and a paste-ready block. A block is only data:
+
+   ```html
+   <figure data-aha="line-chart">
+     <script type="application/json">
+       { ... }
+     </script>
+     <figcaption>…</figcaption>
+   </figure>
+   ```
+
+   Prose-wrapping components (`callout`, `tabs`, `scenarios`, `steps`,
+   `checklist`, `definition-list`) take child markup instead; `scenarios` and
+   `tabs` sections may contain other blocks. Hand-write SVG or script only for
+   a one-off visual no component covers.
+
+   Then build: `aha build page.html -o page.built.html`. It validates each
+   block (errors name the block and field), renders static SVG/HTML with an
+   exact-values fallback, and inlines only the used components' CSS and JS.
+   Rebuilding a built file is a no-op, so edit the source or the built file.
+
+2. Check the built file under the production CSP (about 2 s; pass an
+   absolute path):
 
    ```sh
-   pnpm -C ~/aha preview /abs/path/page.html
+   pnpm -C ~/aha preview /abs/path/page.built.html
    ```
 
    It prints JSON with desktop and mobile full-page screenshot paths and any
@@ -36,7 +62,7 @@ pass, and preview once more only after a fix.
 3. Upload privately and capture the URL:
 
    ```sh
-   aha upload ./page.html
+   aha upload ./page.built.html
    # prints {"id":"<id>","url":"https://aha.oox.sh/<id>","etag":"..."}
    ```
 
@@ -99,7 +125,8 @@ a label on every box, `<figure>` with a numbered mono caption. Code sits in
 `<pre>` with a hairline border and no syntax colors; show changes as a diff.
 Footnotes are real footnotes with return links. Glossaries use `<dl>`.
 
-**Interaction.** Charts are explored in place: pointer anywhere over the plot
+**Interaction.** Catalog components already follow these rules; they apply to
+anything hand-written. Charts are explored in place: pointer anywhere over the plot
 snaps to the nearest data point and shows its values in a tooltip beside it;
 keyboard focus and tap do the same. Nothing is pre-selected, and values never
 appear in a panel away from the point. Label series directly on the chart so
