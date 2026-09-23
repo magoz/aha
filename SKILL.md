@@ -58,8 +58,9 @@ page in one pass, and preview once more only after a fix.
    It prints JSON with desktop and mobile full-page screenshot paths, `tiles`
    (the same screenshots split into numbered 2000px sections for tall pages;
    read these instead of cropping yourself) and any `problems` (script
-   errors, CSP violations, mobile overflow), exiting 1 if there are any. Look
-   at the screenshots; fix problems before uploading. Use
+   errors, CSP violations, mobile overflow, clipped hover/focus overlays,
+   chart/values overlap), exiting 1 if there are any. Look at the screenshots,
+   including the dark-mode shots and tiles; fix problems before uploading. Use
    `--serve` to get a URL for manual interaction. Don't build your own server
    or browser harness.
 

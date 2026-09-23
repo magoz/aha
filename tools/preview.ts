@@ -19,11 +19,15 @@ interface ExitFailure {
 interface PreviewScreenshots {
   readonly desktop: string
   readonly mobile: string
+  readonly desktopDark: string
+  readonly mobileDark: string
 }
 
 interface PreviewTiles {
   readonly desktop: ReadonlyArray<string>
   readonly mobile: ReadonlyArray<string>
+  readonly desktopDark: ReadonlyArray<string>
+  readonly mobileDark: ReadonlyArray<string>
 }
 
 interface PreviewSummary {
@@ -129,8 +133,18 @@ function runDefault(options: PreviewOptions): Effect.Effect<void, ExitFailure> {
 
           return {
             url: server.url,
-            screenshots: { desktop: result.desktopShot, mobile: result.mobileShot },
-            tiles: { desktop: result.desktopTiles, mobile: result.mobileTiles },
+            screenshots: {
+              desktop: result.desktopShot,
+              mobile: result.mobileShot,
+              desktopDark: result.desktopDarkShot,
+              mobileDark: result.mobileDarkShot
+            },
+            tiles: {
+              desktop: result.desktopTiles,
+              mobile: result.mobileTiles,
+              desktopDark: result.desktopDarkTiles,
+              mobileDark: result.mobileDarkTiles
+            },
             problems: result.problems,
             elapsedMs: finished - started
           }

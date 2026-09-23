@@ -11,7 +11,7 @@ import { PreviewFailure, PreviewUsageError } from './preview-error.js'
 
 export type ViewportName = 'desktop' | 'mobile'
 
-export type ProblemKind = 'exception' | 'console' | 'csp' | 'overflow'
+export type ProblemKind = 'exception' | 'console' | 'csp' | 'overflow' | 'clip' | 'overlap'
 
 export interface PreviewProblem {
   readonly viewport: ViewportName
@@ -29,12 +29,16 @@ export interface PreviewRunInput {
 export interface PreviewRunResult {
   readonly desktopShot: string
   readonly mobileShot: string
+  readonly desktopDarkShot: string
+  readonly mobileDarkShot: string
   readonly desktopTiles: ReadonlyArray<string>
   readonly mobileTiles: ReadonlyArray<string>
+  readonly desktopDarkTiles: ReadonlyArray<string>
+  readonly mobileDarkTiles: ReadonlyArray<string>
   readonly problems: ReadonlyArray<PreviewProblem>
 }
 
-export type CdpValue = string | number | boolean | CdpParams
+export type CdpValue = string | number | boolean | CdpParams | ReadonlyArray<CdpValue>
 
 export interface CdpParams {
   readonly [name: string]: CdpValue
@@ -158,6 +162,23 @@ const LoadEventSchema = Schema.Struct({
 const ContentSizeSchema = Schema.Struct({
   scroll: Schema.Number,
   client: Schema.Number
+})
+
+const ClipFindingSchema = Schema.Struct({
+  component: Schema.String,
+  overlay: Schema.String,
+  clippedBy: Schema.String
+})
+
+const OverlapFindingSchema = Schema.Struct({
+  component: Schema.String,
+  element: Schema.String,
+  detail: Schema.String
+})
+
+const ProbeFindingsSchema = Schema.Struct({
+  clips: Schema.Array(ClipFindingSchema),
+  overlaps: Schema.Array(OverlapFindingSchema)
 })
 
 function isExecutable(path: string): Effect.Effect<boolean, never> {
@@ -651,8 +672,314 @@ const TILE_HEIGHT = 2000
 const SETTLE_EXPRESSION =
   "(async () => { await document.fonts.ready; await new Promise((resolve) => { requestAnimationFrame(() => { requestAnimationFrame(resolve) }) }); return 'ready' })()"
 
+/**
+ * Repaint wait after switching the emulated color scheme. Fonts are
+ * already settled from the light pass, so this only forces the theme
+ * recalc and waits two frames: no fixed sleeps.
+ */
+const DARK_REPAINT_EXPRESSION =
+  '(() => { void document.documentElement.offsetWidth; return new Promise((resolve) => { requestAnimationFrame(() => { requestAnimationFrame(resolve) }) }) })()'
+
 const OVERFLOW_EXPRESSION =
   'JSON.stringify({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth })'
+
+/**
+ * One injected probe evaluated through Runtime.evaluate. It exercises
+ * interactive elements (charts get pointer moves near two plot corners,
+ * other targets get mouseover plus focus), reports overlays that end up
+ * clipped by an overflow ancestor or off the document width, and reports
+ * chart SVGs whose box overlaps a following details block or caption.
+ * Returns a JSON string decoded with ProbeFindingsSchema on the Node side.
+ * Rescans are scoped to the interacted block: catalog event handlers only
+ * reveal overlays inside their own root, so no other block can change.
+ */
+const PROBE_EXPRESSION = `(async () => {
+  const run = async () => {
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve))
+    })
+    const TOL = 1
+    const MAX_TARGETS = 150
+    const clips = []
+    const overlaps = []
+    const seenClips = new Set()
+    const blocks = Array.from(document.querySelectorAll('[data-aha]'))
+    const overflowCache = new Map()
+    const describe = (el) => {
+      const tag = el.tagName.toLowerCase()
+      if (el.id) {
+        return tag + '#' + el.id
+      }
+      const raw = el.className
+      if (typeof raw === 'string') {
+        const cls = raw.trim().split(/\\s+/).filter((part) => part.length > 0).slice(0, 2).join('.')
+        if (cls.length > 0) {
+          return tag + '.' + cls
+        }
+      }
+      return tag
+    }
+    const componentOf = (el) => {
+      const block = el.closest('[data-aha]')
+      if (block === null) {
+        return 'page'
+      }
+      return block.getAttribute('data-aha') || 'block'
+    }
+    const overlayName = (el) => {
+      const raw = el.className
+      if (typeof raw === 'string') {
+        const cls = raw.trim().split(/\\s+/).filter((part) => part.length > 0).join('.')
+        if (cls.length > 0) {
+          return '.' + cls
+        }
+      }
+      return describe(el)
+    }
+    const candidates = new Map()
+    const allCandidates = []
+    const scoped = document.querySelectorAll('[data-aha] *, [data-aha]')
+    for (let index = 0; index < scoped.length; index += 1) {
+      const el = scoped.item(index)
+      if (!(el instanceof HTMLElement)) {
+        continue
+      }
+      const pos = getComputedStyle(el).position
+      if (pos !== 'absolute' && pos !== 'fixed') {
+        continue
+      }
+      allCandidates.push(el)
+      const owner = el.closest('[data-aha]')
+      if (!(owner instanceof HTMLElement)) {
+        continue
+      }
+      const list = candidates.get(owner)
+      if (list === undefined) {
+        candidates.set(owner, [el])
+      } else {
+        list.push(el)
+      }
+    }
+    const isShown = (el) => {
+      if (el.hidden) {
+        return false
+      }
+      const rect = el.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) {
+        return false
+      }
+      const style = getComputedStyle(el)
+      if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+        return false
+      }
+      return true
+    }
+    const baseline = new Set()
+    for (const el of allCandidates) {
+      if (isShown(el)) {
+        baseline.add(el)
+      }
+    }
+    const overflowOf = (el) => {
+      const hit = overflowCache.get(el)
+      if (hit !== undefined) {
+        return hit
+      }
+      const style = getComputedStyle(el)
+      const value = { x: style.overflowX, y: style.overflowY }
+      overflowCache.set(el, value)
+      return value
+    }
+    const recordClip = (el) => {
+      const rect = el.getBoundingClientRect()
+      const component = componentOf(el)
+      const overlay = overlayName(el)
+      const fixed = getComputedStyle(el).position === 'fixed'
+      if (!fixed) {
+        let node = el.parentElement
+        while (node !== null && node !== document.body && node !== document.documentElement) {
+          const flow = overflowOf(node)
+          if (flow.x !== 'visible' || flow.y !== 'visible') {
+            const box = node.getBoundingClientRect()
+            if (rect.left < box.left - TOL || rect.top < box.top - TOL || rect.right > box.right + TOL || rect.bottom > box.bottom + TOL) {
+              const key = component + '|' + overlay + '|' + describe(node)
+              if (!seenClips.has(key)) {
+                seenClips.add(key)
+                clips.push({ component, overlay, clippedBy: describe(node) })
+              }
+            }
+          }
+          node = node.parentElement
+        }
+      }
+      const docWidth = document.documentElement.clientWidth
+      if (rect.right > docWidth + TOL || rect.left < 0 - TOL) {
+        const key = component + '|' + overlay + '|document'
+        if (!seenClips.has(key)) {
+          seenClips.add(key)
+          clips.push({ component, overlay, clippedBy: 'document' })
+        }
+      }
+    }
+    const scan = (scope) => {
+      const list = scope === null ? allCandidates : (candidates.get(scope) ?? [])
+      for (const el of list) {
+        if (baseline.has(el)) {
+          continue
+        }
+        if (!isShown(el)) {
+          continue
+        }
+        recordClip(el)
+      }
+    }
+    const pressChart = (chart) => {
+      const svg = chart.querySelector('svg')
+      const box = (svg instanceof Element ? svg : chart).getBoundingClientRect()
+      const points = [
+        { x: box.left + 8, y: box.top + 8 },
+        { x: box.right - 8, y: box.bottom - 8 }
+      ]
+      for (const point of points) {
+        const init = { bubbles: true, cancelable: true, clientX: point.x, clientY: point.y, button: 0 }
+        chart.dispatchEvent(new PointerEvent('pointerover', Object.assign({ pointerType: 'mouse' }, init)))
+        chart.dispatchEvent(new PointerEvent('pointermove', Object.assign({ pointerType: 'mouse' }, init)))
+        chart.dispatchEvent(new MouseEvent('mousemove', init))
+        chart.dispatchEvent(new MouseEvent('mouseover', init))
+      }
+    }
+    const pressNode = (el) => {
+      const rect = el.getBoundingClientRect()
+      const init = { bubbles: true, cancelable: true, clientX: (rect.left + rect.right) / 2, clientY: (rect.top + rect.bottom) / 2 }
+      el.dispatchEvent(new PointerEvent('pointerover', Object.assign({ pointerType: 'mouse' }, init)))
+      el.dispatchEvent(new MouseEvent('mouseover', init))
+      try {
+        el.focus({ preventScroll: true })
+      } catch {
+      }
+    }
+    const reset = (el, chart) => {
+      el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true }))
+      el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true }))
+      const root = chart !== null ? chart : el.closest('[data-aha]')
+      if (root instanceof HTMLElement) {
+        root.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, cancelable: true, pointerType: 'mouse' }))
+        root.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true }))
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+      }
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+      const active = document.activeElement
+      if (active instanceof HTMLElement) {
+        active.blur()
+      }
+    }
+    const jobs = []
+    const pushJob = (el, chart, block) => {
+      if (jobs.length >= MAX_TARGETS) {
+        return
+      }
+      for (const job of jobs) {
+        if (job.el === el) {
+          return
+        }
+      }
+      jobs.push({ el, chart, block })
+    }
+    for (const block of blocks) {
+      if (!(block instanceof HTMLElement)) {
+        continue
+      }
+      const charts = block.querySelectorAll('.aha-chart')
+      for (let index = 0; index < charts.length; index += 1) {
+        const chart = charts.item(index)
+        if (chart instanceof HTMLElement) {
+          pushJob(chart, chart, block)
+        }
+      }
+      const inners = []
+      const found = block.querySelectorAll('[tabindex], button, summary')
+      for (let index = 0; index < found.length; index += 1) {
+        const el = found.item(index)
+        if (el instanceof HTMLElement) {
+          inners.push(el)
+        }
+      }
+      if (inners.length <= 3) {
+        for (const el of inners) {
+          pushJob(el, null, block)
+        }
+      } else {
+        const first = inners[0]
+        const middle = inners[Math.floor(inners.length / 2)]
+        const last = inners[inners.length - 1]
+        if (first !== undefined) {
+          pushJob(first, null, block)
+        }
+        if (middle !== undefined) {
+          pushJob(middle, null, block)
+        }
+        if (last !== undefined) {
+          pushJob(last, null, block)
+        }
+      }
+    }
+    for (const job of jobs) {
+      if (job.chart !== null) {
+        pressChart(job.chart)
+      } else {
+        pressNode(job.el)
+      }
+      scan(job.block)
+      reset(job.el, job.chart)
+    }
+    const active = document.activeElement
+    if (active instanceof HTMLElement) {
+      active.blur()
+    }
+    for (const block of blocks) {
+      if (!(block instanceof HTMLElement)) {
+        continue
+      }
+      const component = block.getAttribute('data-aha') || 'block'
+      const direct = block.querySelector(':scope > svg')
+      const inChart = block.querySelector(':scope > .aha-chart > svg')
+      let svg = null
+      if (direct instanceof Element) {
+        svg = direct
+      } else if (inChart instanceof Element) {
+        svg = inChart
+      }
+      if (svg === null) {
+        continue
+      }
+      const box = svg.getBoundingClientRect()
+      if (box.width <= 0 || box.height <= 0) {
+        continue
+      }
+      const followers = block.querySelectorAll('details.aha-values, figcaption')
+      for (let index = 0; index < followers.length; index += 1) {
+        const fol = followers.item(index)
+        if (!(fol instanceof HTMLElement)) {
+          continue
+        }
+        if (!(svg.compareDocumentPosition(fol) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+          continue
+        }
+        const other = fol.getBoundingClientRect()
+        if (other.width <= 0 || other.height <= 0) {
+          continue
+        }
+        const vertical = Math.min(box.bottom, other.bottom) - Math.max(box.top, other.top)
+        const horizontal = Math.min(box.right, other.right) - Math.max(box.left, other.left)
+        if (vertical > 2 && horizontal > 0) {
+          overlaps.push({ component, element: describe(fol), detail: String(Math.round(vertical)) + 'px vertical overlap' })
+        }
+      }
+    }
+    return JSON.stringify({ clips, overlaps })
+  }
+  return run()
+})()`
 
 function watchLoad(driver: CdpDriver, sessionId: string): Deferred.Deferred<void, PreviewFailure> {
   const waiter = Deferred.makeUnsafe<void, PreviewFailure>()
@@ -678,6 +1005,31 @@ function settlePage(driver: CdpDriver, sessionId: string): Effect.Effect<void, P
         viewport: driver.currentViewport,
         kind: 'exception',
         message: `settle failed: ${details.text}`
+      })
+    }
+  })
+}
+
+function settleDarkRepaint(
+  driver: CdpDriver,
+  sessionId: string
+): Effect.Effect<void, PreviewFailure> {
+  return Effect.gen(function* () {
+    const outcome = yield* sendCdp(
+      driver,
+      'Runtime.evaluate',
+      { expression: DARK_REPAINT_EXPRESSION, awaitPromise: true, returnByValue: true },
+      sessionId,
+      EvaluateResultSchema
+    )
+
+    const details = outcome.exceptionDetails
+
+    if (details !== undefined) {
+      driver.problems.push({
+        viewport: driver.currentViewport,
+        kind: 'exception',
+        message: `dark repaint failed: ${details.text}`
       })
     }
   })
@@ -761,6 +1113,56 @@ function checkMobileOverflow(
 interface ViewportShots {
   readonly shot: string
   readonly tiles: ReadonlyArray<string>
+  readonly darkShot: string
+  readonly darkTiles: ReadonlyArray<string>
+}
+
+function runProbeChecks(driver: CdpDriver, sessionId: string): Effect.Effect<void, PreviewFailure> {
+  return Effect.gen(function* () {
+    const outcome = yield* sendCdp(
+      driver,
+      'Runtime.evaluate',
+      { expression: PROBE_EXPRESSION, awaitPromise: true, returnByValue: true },
+      sessionId,
+      EvaluateResultSchema
+    )
+
+    if (outcome.exceptionDetails !== undefined) {
+      driver.problems.push({
+        viewport: driver.currentViewport,
+        kind: 'exception',
+        message: `probe failed: ${outcome.exceptionDetails.text}`
+      })
+
+      return
+    }
+
+    const raw = outcome.result.value
+
+    if (!Predicate.isString(raw)) {
+      return yield* Effect.fail(new PreviewFailure({ message: 'invalid probe result' }))
+    }
+
+    const findings = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ProbeFindingsSchema))(
+      raw
+    ).pipe(Effect.mapError(() => new PreviewFailure({ message: 'invalid probe result' })))
+
+    for (const clip of findings.clips) {
+      driver.problems.push({
+        viewport: driver.currentViewport,
+        kind: 'clip',
+        message: `${clip.component}: overlay ${clip.overlay} clipped by ${clip.clippedBy}`
+      })
+    }
+
+    for (const overlap of findings.overlaps) {
+      driver.problems.push({
+        viewport: driver.currentViewport,
+        kind: 'overlap',
+        message: `${overlap.component}: chart svg overlaps ${overlap.element} (${overlap.detail})`
+      })
+    }
+  })
 }
 
 function captureTiles(
@@ -769,7 +1171,8 @@ function captureTiles(
   spec: ViewportSpec,
   fullHeight: number,
   outDir: string,
-  stem: string
+  stem: string,
+  suffix: string
 ): Effect.Effect<ReadonlyArray<string>, PreviewFailure> {
   return Effect.gen(function* () {
     if (fullHeight <= TILE_HEIGHT * 1.2) {
@@ -794,7 +1197,7 @@ function captureTiles(
       )
 
       const index = String(tiles.length + 1).padStart(2, '0')
-      const tilePath = join(outDir, `${stem}.${spec.name}.${index}.png`)
+      const tilePath = join(outDir, `${stem}.${spec.name}${suffix}.${index}.png`)
 
       yield* Effect.tryPromise({
         try: () => writeFile(tilePath, Buffer.from(tile.data, 'base64')),
@@ -868,13 +1271,58 @@ function runViewport(
       catch: () => new PreviewFailure({ message: `cannot write screenshot: ${shotPath}` })
     })
 
-    const tiles = yield* captureTiles(driver, sessionId, spec, fullHeight, outDir, stem)
+    const tiles = yield* captureTiles(driver, sessionId, spec, fullHeight, outDir, stem, '')
+
+    yield* runProbeChecks(driver, sessionId)
 
     if (spec.mobile) {
       yield* checkMobileOverflow(driver, sessionId)
     }
 
-    return { shot: shotPath, tiles }
+    yield* sendCdp(
+      driver,
+      'Emulation.setEmulatedMedia',
+      { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'dark' }] },
+      sessionId,
+      EmptyResultSchema
+    )
+
+    yield* settleDarkRepaint(driver, sessionId)
+
+    const darkShot = yield* sendCdp(
+      driver,
+      'Page.captureScreenshot',
+      { format: 'png', captureBeyondViewport: true },
+      sessionId,
+      ScreenshotResultSchema
+    )
+
+    const darkShotPath = join(outDir, `${stem}.${spec.name}.dark.png`)
+
+    yield* Effect.tryPromise({
+      try: () => writeFile(darkShotPath, Buffer.from(darkShot.data, 'base64')),
+      catch: () => new PreviewFailure({ message: `cannot write screenshot: ${darkShotPath}` })
+    })
+
+    const darkTiles = yield* captureTiles(
+      driver,
+      sessionId,
+      spec,
+      fullHeight,
+      outDir,
+      stem,
+      '.dark'
+    )
+
+    yield* sendCdp(
+      driver,
+      'Emulation.setEmulatedMedia',
+      NO_CDP_PARAMS,
+      sessionId,
+      EmptyResultSchema
+    )
+
+    return { shot: shotPath, tiles, darkShot: darkShotPath, darkTiles }
   })
 }
 
@@ -973,8 +1421,12 @@ export function runPreviewBrowser(
               return {
                 desktopShot: desktopShot.shot,
                 mobileShot: mobileShot.shot,
+                desktopDarkShot: desktopShot.darkShot,
+                mobileDarkShot: mobileShot.darkShot,
                 desktopTiles: desktopShot.tiles,
                 mobileTiles: mobileShot.tiles,
+                desktopDarkTiles: desktopShot.darkTiles,
+                mobileDarkTiles: mobileShot.darkTiles,
                 problems: attached.driver.problems.slice()
               }
             }),
