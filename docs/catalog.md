@@ -83,6 +83,13 @@ entry to `catalogCategories` in `catalog/categories.ts`. That list is the
 only aggregation point; workers adding components to existing categories
 never edit it.
 
+For parallel work, register every new category (empty registry plus its
+`categories.ts` entry) on main before branching, give each worker one
+category directory, and name a single owner for each shared file
+(`catalog/shared/`, `catalog/blocks.ts`, `catalog/build.ts`,
+`catalog/showcase.ts`). Client bundles are discovered by glob, so
+`tsup.config.ts` never changes. Branches then merge without conflicts.
+
 ## Services and layers
 
 IO and dependencies live behind Effect services next to the code that needs
@@ -164,6 +171,26 @@ Every chart follows the same standard, implemented once in the kit:
 - `prefers-reduced-motion` disables transitions.
 - Static markup reads without scripts; exact values ship in a collapsed
   `<details>` table where they make sense.
+
+## Reviewing a component
+
+`pnpm verify` and a light-mode screenshot are not enough: the calendar
+tooltip clipped by its grid cell, the proportion-bar SVG shorter than its
+bars, and the cramped comparison matrix all passed both. Before calling a
+component done:
+
+- Build a page with its example and data at realistic sizes (long labels,
+  5–6 options, tall values) and run `pnpm preview`. It must report no
+  problems: `clip` (a hover or focus overlay cut off by an overflow
+  ancestor), `overlap` (chart content painted onto the following
+  details or caption), mobile `overflow`, script errors or CSP violations.
+- Read the light and dark tiles at both widths.
+- Position tooltips and popovers on the component root and clamp them
+  there; never inside a cell or scroll box that clips overflow.
+- Derive SVG height from the painted content, not from a formula that
+  can drift from it.
+- The example `aha components <name>` prints must build unchanged; a test
+  covers every component.
 
 ## Bundling
 

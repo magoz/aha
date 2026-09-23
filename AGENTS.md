@@ -29,6 +29,11 @@ Personal HTML publishing for agents. Public repository: never commit credentials
 - Uploaded sample documents must be synthetic, non-sensitive data.
 - Prefer bounded reads/uploads and conservative defaults over exposing object-storage primitives.
 
+## Catalog and preview
+
+- `catalog/` holds the component catalog behind `aha build` and `aha components`; `docs/catalog.md` is the contributor guide (adding components and categories, parallel work, review checklist).
+- `pnpm preview <file>` (`tools/preview*.ts`) serves a page under the production CSP and reports script errors, CSP violations, mobile overflow, clipped hover overlays and chart overlaps, with light and dark screenshots. A catalog or page change is not done until preview is clean and its tiles have been read.
+
 ## Validation
 
 Provide `pnpm verify`: format check, typecheck, lint, tests and build. Test absent/present/deleted markers, storage failures, forged private headers, credential separation, unsafe IDs, upload limits, update visibility preservation, and the constrained private gateway.
