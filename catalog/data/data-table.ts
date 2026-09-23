@@ -51,7 +51,7 @@ const EXAMPLE_JSON = `{
     { "key": "cost", "label": "cost / task", "type": "currency", "currency": "USD", "digits": 3 },
     { "key": "score", "label": "score", "type": "number", "digits": 1 },
     { "key": "win", "label": "win rate", "type": "percent", "digits": 0 },
-    { "key": "eval", "label": "evaluated", "type": "date" }
+    { "key": "eval", "label": "evaluated", "type": "date", "priority": "low" }
   ],
   "rows": [
     ["Arbor", 0.31, 82.4, 0.61, "2026-09-18"],

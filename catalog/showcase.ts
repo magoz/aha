@@ -2,7 +2,7 @@ import { Effect } from 'effect'
 
 import { buildPage } from './build.js'
 import type { BuildError } from './build.js'
-import { catalogCategories } from './categories.js'
+import { allCatalogComponents, catalogCategories } from './categories.js'
 import { CatalogFileError } from './errors.js'
 import { CatalogFileStore } from './services/catalog-file-store.js'
 import { ClientBundleStore } from './services/client-bundle-store.js'
@@ -41,7 +41,33 @@ function exampleFigure(exampleJson: string, name: string, caption: string, width
 }
 
 function exampleAside(name: string, markup: string, kind: string): string {
-  return `<aside data-aha="${name}" data-kind="${kind}">\n${markup}\n</aside>`
+  const tag = markupTagFor(name)
+  const kindAttr = tag === 'aside' ? ` data-kind="${escapeHtml(kind)}"` : ''
+
+  return `<${tag} data-aha="${name}"${kindAttr}>\n${markup}\n</${tag}>`
+}
+
+/** Wrapper tag matching the component's authoring contract: callout wraps
+ * prose in an aside, list components use their list element, and the
+ * section-based interactive components use a plain div. */
+function markupTagFor(name: string): string {
+  if (name === 'callout') {
+    return 'aside'
+  }
+
+  if (name === 'definition-list') {
+    return 'dl'
+  }
+
+  if (name === 'steps') {
+    return 'ol'
+  }
+
+  if (name === 'checklist') {
+    return 'ul'
+  }
+
+  return 'div'
 }
 
 function componentSection(
@@ -107,8 +133,17 @@ function applyTemplate(template: string, sections: string): string {
   page = page.replace(/<main>.*?<\/main>/s, `<main>\n${sections}</main>`)
   page = page.replace(/--measure:\s*44rem;/, '--measure: 72rem;')
   page = page.replace('</style>', `${SHOWCASE_CSS}</style>`)
+  page = page.replace(
+    /<p class="colophon">.*?<\/p>/s,
+    `<p class="colophon"><span>aha.oox.sh</span><span>rev ${showcaseBuildDate()}</span><span>${String(allCatalogComponents().length)} components</span></p>`
+  )
 
   return page
+}
+
+/** Build date stamped on the showcase colophon (YYYY-MM-DD, UTC). */
+function showcaseBuildDate(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
 export function buildShowcasePage(

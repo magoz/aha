@@ -124,6 +124,28 @@ function numericColumn(type: string): boolean {
   return type === 'number' || type === 'currency' || type === 'percent'
 }
 
+function columnClasses(type: string, priority: string | undefined): string {
+  const classes: Array<string> = []
+
+  if (numericColumn(type)) {
+    classes.push('num')
+  }
+
+  if (type === 'date') {
+    classes.push('dt')
+  }
+
+  if (priority === 'low') {
+    classes.push('low')
+  }
+
+  if (classes.length === 0) {
+    return ''
+  }
+
+  return ` class="${classes.join(' ')}"`
+}
+
 export function renderDataTable(input: DataTableInput, options: DataTableRenderOptions): string {
   const collapseAfter = input.collapseAfter ?? DATA_TABLE_DEFAULT_COLLAPSE
   const highlight = input.highlightRow ?? -1
@@ -138,12 +160,12 @@ export function renderDataTable(input: DataTableInput, options: DataTableRenderO
     }
 
     const label = column.label ?? column.key
-    const numClass = numericColumn(column.type) ? ' class="num"' : ''
+    const cellClass = columnClasses(column.type, column.priority)
 
     if ((input.sortable ?? false) && input.columns.length > 0) {
-      head += `<th${numClass} data-sort="${String(index)}" tabindex="0" role="columnheader">${escapeHtml(label)} <span class="sort-arrow" aria-hidden="true"></span></th>`
+      head += `<th${cellClass} data-sort="${String(index)}" tabindex="0" role="columnheader">${escapeHtml(label)} <span class="sort-arrow" aria-hidden="true"></span></th>`
     } else {
-      head += `<th${numClass}>${escapeHtml(label)}</th>`
+      head += `<th${cellClass}>${escapeHtml(label)}</th>`
     }
   }
 
@@ -167,14 +189,14 @@ export function renderDataTable(input: DataTableInput, options: DataTableRenderO
       }
 
       const cell: DataTableCell = row[colIndex] ?? null
-      const numClass = numericColumn(column.type) ? ' class="num"' : ''
+      const bodyClass = columnClasses(column.type, column.priority)
       const sortKey = cellSortKey(cell, column.type)
 
       const keyAttr = isCellNumber(sortKey)
         ? ` data-key="${String(sortKey)}"`
         : ` data-key="${escapeAttr(sortKey)}"`
 
-      html += `<td${numClass}${keyAttr}>${formatCell(cell, column.type, column.currency, column.digits)}</td>`
+      html += `<td${bodyClass}${keyAttr}>${formatCell(cell, column.type, column.currency, column.digits)}</td>`
     }
 
     html += '</tr>'
