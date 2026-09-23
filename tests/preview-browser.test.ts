@@ -80,7 +80,7 @@ describe('preview browser capture', () => {
                   url: server.url,
                   outDir: join(dir, 'shots'),
                   stem: 'clean'
-                }).pipe(Effect.mapError(() => new Error('capture failed')))
+                }).pipe(Effect.mapError((error) => new Error(`capture failed: ${error.message}`)))
 
                 expect(result.problems).toEqual([])
 
@@ -146,7 +146,7 @@ describe('preview browser capture', () => {
                   url: server.url,
                   outDir: join(dir, 'shots'),
                   stem: 'noisy'
-                }).pipe(Effect.mapError(() => new Error('capture failed')))
+                }).pipe(Effect.mapError((error) => new Error(`capture failed: ${error.message}`)))
 
                 const kinds = result.problems.map((problem) => problem.kind)
 

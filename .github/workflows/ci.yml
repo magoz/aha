@@ -18,6 +18,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Ubuntu 24.04 blocks unprivileged user namespaces, which Chromium's sandbox needs.
+      # Allow them on the runner instead of disabling the sandbox in the preview tool.
+      - name: Allow Chromium sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm verify
       - name: Build Vercel functions offline (no credentials or deployment)
         run: |
