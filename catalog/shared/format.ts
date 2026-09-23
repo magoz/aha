@@ -29,9 +29,11 @@ function withDigits(
 }
 
 export function formatNumberValue(value: number, spec: NumberFormatSpec): string {
+  const clean = value === 0 ? 0 : value
+
   if (spec.style === 'percent') {
     return new Intl.NumberFormat('en-US', withDigits(spec.digits, { style: 'percent' })).format(
-      value
+      clean
     )
   }
 
@@ -41,10 +43,10 @@ export function formatNumberValue(value: number, spec: NumberFormatSpec): string
     return new Intl.NumberFormat(
       'en-US',
       withDigits(spec.digits, { style: 'currency', currency: code })
-    ).format(value)
+    ).format(clean)
   }
 
-  return new Intl.NumberFormat('en-US', withDigits(spec.digits, {})).format(value)
+  return new Intl.NumberFormat('en-US', withDigits(spec.digits, {})).format(clean)
 }
 
 const MONTH_NAMES: ReadonlyArray<string> = [

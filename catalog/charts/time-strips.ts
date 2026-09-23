@@ -535,7 +535,8 @@ const EXAMPLE_JSON = `{
     },
     {
       "label": "Rain",
-      "unit": "% + mm",
+      "unit": "%",
+      "barUnit": "mm",
       "kind": "line-bars",
       "lane": "blue",
       "points": [

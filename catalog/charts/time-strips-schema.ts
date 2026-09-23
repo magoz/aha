@@ -42,7 +42,11 @@ export const StripRowSchema = Schema.Struct({
     description: 'Which channels this row draws: a line, bars, a band, or a combination.'
   }),
   unit: Schema.optional(Schema.String).annotate({
-    description: 'Unit caption for the row, e.g. °C, %, mm, km/h.'
+    description: 'Unit caption for the line channel, e.g. °C, %, km/h.'
+  }),
+  barUnit: Schema.optional(Schema.String).annotate({
+    description:
+      'Unit for the bar channel on line-bars rows, e.g. mm when the line is %. Drawn on a labelled right-hand scale.'
   }),
   lane: Schema.optional(Schema.Literals(['ink', 'blue'])).annotate({
     description: 'Ink lane by default; blue for rain and water rows. Never warning red.'

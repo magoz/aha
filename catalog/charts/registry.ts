@@ -1,5 +1,13 @@
 import type { CatalogComponent } from '../component.js'
+import { areaChartComponent } from './area-chart.js'
+import { barChartComponent } from './bar-chart.js'
+import { heatmapComponent } from './heatmap.js'
+import { histogramComponent } from './histogram.js'
 import { lineChartComponent } from './line-chart.js'
+import { proportionBarComponent } from './proportion-bar.js'
+import { rangePlotComponent } from './range-plot.js'
+import { scatterPlotComponent } from './scatter-plot.js'
+import { sparklineComponent } from './sparkline.js'
 import { timeStripsComponent } from './time-strips.js'
 
 /**
@@ -9,5 +17,13 @@ import { timeStripsComponent } from './time-strips.js'
 
 export const chartsComponents: ReadonlyArray<CatalogComponent> = [
   lineChartComponent,
-  timeStripsComponent
+  timeStripsComponent,
+  barChartComponent,
+  areaChartComponent,
+  scatterPlotComponent,
+  sparklineComponent,
+  heatmapComponent,
+  rangePlotComponent,
+  proportionBarComponent,
+  histogramComponent
 ]

@@ -13,6 +13,7 @@ export const CHART_CSS = `
 .aha-chart .frame { stroke: var(--rule); stroke-width: 1; fill: none; }
 .aha-chart .slabel { font-family: var(--mono); font-size: 11px; fill: var(--muted); cursor: default; }
 .aha-chart .slabel.hi { fill: var(--accent); font-weight: 600; }
+.aha-chart .leader { stroke: var(--muted); stroke-width: 1; }
 .aha-chart .aha-title { font-family: var(--mono); font-size: var(--t-sm); margin: 0 0 0.5rem; }
 .aha-chart .series { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .aha-chart .series .mk { fill: var(--paper); stroke: inherit; stroke-width: 1.5; }
