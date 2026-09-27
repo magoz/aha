@@ -11,7 +11,7 @@ import {
   uploadDocument
 } from './documents.js'
 import { MAX_HTML_BYTES } from './html-limits.js'
-import { isPlanId } from './plan-id.js'
+import { isPlanId, isReservedDocumentName } from './plan-id.js'
 import { withSecurityHeaders } from './security-headers.js'
 import type { HeaderMap } from './headers.js'
 import { AhaStorageTag } from './storage.js'
@@ -145,7 +145,7 @@ function routeFor(parts: ReadonlyArray<string>): RouteTarget | null {
       return null
     }
 
-    if (isPlanId(only)) {
+    if (isPlanId(only) && !isReservedDocumentName(only)) {
       return { kind: 'public-document', id: only }
     }
 
@@ -384,7 +384,9 @@ function handleDocumentCollection(
     const contentType = headerValue(request.headers, 'content-type') ?? ''
     const body = request.body ?? new Uint8Array(0)
 
-    return uploadDocument(body, contentType, authorization, config).pipe(
+    const name = parsed.searchParams.get('name')
+
+    return uploadDocument(name, body, contentType, authorization, config).pipe(
       Effect.map((created) =>
         jsonResponse(
           201,
@@ -399,7 +401,9 @@ function handleDocumentCollection(
         Unauthorized: () => Effect.succeed(jsonResponse(401, errorJson('unauthorized'))),
         UnsupportedMediaType: () =>
           Effect.succeed(jsonResponse(415, errorJson('unsupported-media-type'))),
-        PayloadTooLarge: () => Effect.succeed(jsonResponse(413, errorJson('payload-too-large')))
+        PayloadTooLarge: () => Effect.succeed(jsonResponse(413, errorJson('payload-too-large'))),
+        InvalidDocumentName: () => Effect.succeed(jsonResponse(400, errorJson('invalid-name'))),
+        DocumentExists: () => Effect.succeed(jsonResponse(409, errorJson('name-taken')))
       }),
       Effect.orElseSucceed(() => jsonResponse(502, errorJson('storage-unavailable')))
     )

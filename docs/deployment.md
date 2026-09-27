@@ -11,8 +11,8 @@
   `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`
   (`R2_REGION` optional, default `auto`) in the project environment.
 - `vercel.json` routes `/` to a static greeting, `/api/health` to a health
-  check, `/api/...` to document functions, and `/:id` (strict 22-character
-  base64url) to the public document function. No raw object routes exist.
+  check, `/api/...` to document functions, and `/:id` (`[A-Za-z0-9_-]{1,80}`,
+  one path segment) to the public document function. No raw object routes exist.
 - Attach the `aha.oox.sh` domain after review. The R2 bucket and any direct
   access domains stay private and disabled.
 

@@ -21,7 +21,10 @@ const PUT_ETAG = '"v2-put"'
 
 interface SeenPut {
   readonly ifMatch: string | null
+  readonly ifNoneMatch: string | null
 }
+
+const TAKEN_NAME = 'taken-name'
 
 function headerFirst(value: string | Array<string> | undefined): string | null {
   if (value === undefined) {
@@ -51,6 +54,10 @@ function listPage(prefix: string, token: string | null): string {
 
 function preconditionFailedXml(): string {
   return '<?xml version="1.0" encoding="UTF-8"?><Error><Code>PreconditionFailed</Code><Message>stale</Message><RequestId>stub</RequestId></Error>'
+}
+
+function conditionalConflictXml(): string {
+  return '<?xml version="1.0" encoding="UTF-8"?><Error><Code>ConditionalRequestConflict</Code><Message>race</Message><RequestId>stub</RequestId></Error>'
 }
 
 const AddressSchema = Schema.Struct({ port: Schema.Number })
@@ -108,9 +115,21 @@ describe('s3 storage against a stub S3 endpoint', () => {
         req.resume()
         req.on('end', () => {
           const ifMatch = headerFirst(req.headers['if-match'])
-          puts.push({ ifMatch })
+          const ifNoneMatch = headerFirst(req.headers['if-none-match'])
+          puts.push({ ifMatch, ifNoneMatch })
 
-          if (ifMatch !== null && ifMatch !== CURRENT_ETAG) {
+          if (ifNoneMatch === '*' && parsed.pathname === '/test-bucket/aha/racing-name.html') {
+            res.statusCode = 409
+            res.setHeader('content-type', 'application/xml')
+            res.end(conditionalConflictXml())
+
+            return
+          }
+
+          const exists = parsed.pathname !== '/test-bucket/aha/fresh-name.html'
+          const createBlocked = ifNoneMatch === '*' && exists
+
+          if ((ifMatch !== null && ifMatch !== CURRENT_ETAG) || createBlocked) {
             res.statusCode = 412
             res.setHeader('content-type', 'application/xml')
             res.end(preconditionFailedXml())
@@ -201,6 +220,7 @@ describe('s3 storage against a stub S3 endpoint', () => {
 
       const etag = yield* storage.putDocument(id, htmlBytes(SAMPLE), {
         ifMatch: CURRENT_ETAG,
+        createOnly: false,
         contentType: 'text/html; charset=utf-8'
       })
 
@@ -217,6 +237,7 @@ describe('s3 storage against a stub S3 endpoint', () => {
 
       const etag = yield* storage.putDocument(id, htmlBytes(SAMPLE), {
         ifMatch: null,
+        createOnly: false,
         contentType: 'text/html; charset=utf-8'
       })
 
@@ -234,12 +255,67 @@ describe('s3 storage against a stub S3 endpoint', () => {
       const failure = yield* Effect.flip(
         storage.putDocument(id, htmlBytes(SAMPLE), {
           ifMatch: '"stale-etag"',
+          createOnly: false,
           contentType: 'text/html; charset=utf-8'
         })
       )
 
       expect(Predicate.isTagged(failure, 'PreconditionFailed')).toBe(true)
       expect(puts.length).toBe(1)
+    })
+  )
+
+  it.effect('create-only putDocument sends If-None-Match: * and writes a fresh name', () =>
+    Effect.gen(function* () {
+      const storage = makeStorage()
+      const id = yield* parsePlanId('fresh-name')
+
+      const etag = yield* storage.putDocument(id, htmlBytes(SAMPLE), {
+        ifMatch: null,
+        createOnly: true,
+        contentType: 'text/html; charset=utf-8'
+      })
+
+      expect(etag).toBe(PUT_ETAG)
+      expect(puts.length).toBe(1)
+      expect(puts[0]?.ifNoneMatch).toBe('*')
+      expect(puts[0]?.ifMatch).toBe(null)
+    })
+  )
+
+  it.effect('create-only putDocument maps a 412 on a taken name to DocumentExists', () =>
+    Effect.gen(function* () {
+      const storage = makeStorage()
+      const id = yield* parsePlanId(TAKEN_NAME)
+
+      const failure = yield* Effect.flip(
+        storage.putDocument(id, htmlBytes(SAMPLE), {
+          ifMatch: null,
+          createOnly: true,
+          contentType: 'text/html; charset=utf-8'
+        })
+      )
+
+      expect(Predicate.isTagged(failure, 'DocumentExists')).toBe(true)
+      expect(puts.length).toBe(1)
+      expect(puts[0]?.ifNoneMatch).toBe('*')
+    })
+  )
+
+  it.effect('create-only putDocument maps a racing conditional conflict to DocumentExists', () =>
+    Effect.gen(function* () {
+      const storage = makeStorage()
+      const id = yield* parsePlanId('racing-name')
+
+      const failure = yield* Effect.flip(
+        storage.putDocument(id, htmlBytes(SAMPLE), {
+          ifMatch: null,
+          createOnly: true,
+          contentType: 'text/html; charset=utf-8'
+        })
+      )
+
+      expect(Predicate.isTagged(failure, 'DocumentExists')).toBe(true)
     })
   )
 

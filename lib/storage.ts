@@ -1,7 +1,12 @@
 import type { Effect } from 'effect'
 import { Context } from 'effect'
 
-import type { DocumentNotFound, PreconditionFailed, StorageUnavailable } from './errors.js'
+import type {
+  DocumentExists,
+  DocumentNotFound,
+  PreconditionFailed,
+  StorageUnavailable
+} from './errors.js'
 import type { PlanId } from './plan-id.js'
 
 export interface StoredDocument {
@@ -24,6 +29,10 @@ export interface ListEntry {
 
 export interface PutOptions {
   readonly ifMatch: string | null
+  // Create-only write (conditional `If-None-Match: *`): fails with DocumentExists when the key is
+  // taken. Race-safe because the storage backend enforces it atomically. Takes precedence over
+  // ifMatch.
+  readonly createOnly: boolean
   readonly contentType: string
 }
 
@@ -38,7 +47,10 @@ export interface AhaStorage {
     id: PlanId,
     body: Uint8Array,
     options: PutOptions
-  ) => Effect.Effect<string, StorageUnavailable | DocumentNotFound | PreconditionFailed>
+  ) => Effect.Effect<
+    string,
+    StorageUnavailable | DocumentNotFound | PreconditionFailed | DocumentExists
+  >
   readonly deleteDocument: (
     id: PlanId
   ) => Effect.Effect<void, StorageUnavailable | DocumentNotFound>

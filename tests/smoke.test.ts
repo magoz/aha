@@ -119,7 +119,7 @@ function runLifecycle(port: number): Effect.Effect<void, Error> {
     const base = `http://127.0.0.1:${String(port)}`
     const auth = { authorization: ownerAuth() }
 
-    const uploadStatus = yield* fetchStatus(`${base}/api/documents`, {
+    const uploadStatus = yield* fetchStatus(`${base}/api/documents?name=smoke-first`, {
       method: 'POST',
       headers: { ...auth, 'content-type': 'text/html' },
       body: Buffer.from(htmlBytes(SAMPLE))
@@ -127,7 +127,15 @@ function runLifecycle(port: number): Effect.Effect<void, Error> {
 
     expect(uploadStatus).toBe(201)
 
-    const createdText = yield* fetchText(`${base}/api/documents`, {
+    const clashStatus = yield* fetchStatus(`${base}/api/documents?name=smoke-first`, {
+      method: 'POST',
+      headers: { ...auth, 'content-type': 'text/html' },
+      body: Buffer.from(htmlBytes(SAMPLE))
+    })
+
+    expect(clashStatus).toBe(409)
+
+    const createdText = yield* fetchText(`${base}/api/documents?name=smoke-lifecycle`, {
       method: 'POST',
       headers: { ...auth, 'content-type': 'text/html' },
       body: Buffer.from(htmlBytes(SAMPLE))
@@ -137,7 +145,7 @@ function runLifecycle(port: number): Effect.Effect<void, Error> {
       Effect.orElseSucceed(() => ({ id: '', url: '', etag: '' }))
     )
 
-    expect(created.id.length).toBe(22)
+    expect(created.id).toBe('smoke-lifecycle')
 
     const before = yield* fetchStatus(`${base}/${created.id}`, {})
 

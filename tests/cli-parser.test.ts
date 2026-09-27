@@ -21,9 +21,54 @@ describe('cli parser', () => {
       }
 
       expect(request.file).toBe('./page.html')
+      expect(request.name).toBe(null)
       expect(request.endpoint).toBe('https://aha.oox.sh')
       expect(request.publicUrl).toBe('https://aha.oox.sh')
       expect(request.token).toBe('owner-token-for-tests')
+    })
+  )
+
+  it.effect('parses upload --name before or after the file', () =>
+    Effect.gen(function* () {
+      for (const args of [
+        ['upload', './page.html', '--name', 'Q3 Launch Plan'],
+        ['upload', '--name', 'Q3 Launch Plan', './page.html']
+      ]) {
+        const request = yield* parseCliArgs(args, TOKEN_ENV)
+
+        if (request.command !== 'upload') {
+          expect(false).toBe(true)
+
+          return
+        }
+
+        expect(request.file).toBe('./page.html')
+        expect(request.name).toBe('Q3 Launch Plan')
+      }
+
+      const missingValue = yield* Effect.flip(
+        parseCliArgs(['upload', './page.html', '--name'], TOKEN_ENV)
+      )
+
+      expect(Predicate.isTagged(missingValue, 'CliUsageError')).toBe(true)
+
+      const missingFile = yield* Effect.flip(parseCliArgs(['upload', '--name', 'x'], TOKEN_ENV))
+
+      expect(Predicate.isTagged(missingFile, 'CliUsageError')).toBe(true)
+    })
+  )
+
+  it.effect('accepts readable names and legacy ids for existing documents', () =>
+    Effect.gen(function* () {
+      for (const id of ['q3-launch-plan', 'AAAAAAAAAAAAAAAAAAAAAA']) {
+        const publish = yield* parseCliArgs(['publish', id], TOKEN_ENV)
+
+        expect(publish.command).toBe('publish')
+
+        const read = yield* parseCliArgs(['read', id], TOKEN_ENV)
+
+        expect(read.command).toBe('read')
+      }
     })
   )
 
@@ -97,7 +142,7 @@ describe('cli parser', () => {
 
   it.effect('rejects invalid ids and unknown commands', () =>
     Effect.gen(function* () {
-      const badId = yield* Effect.flip(parseCliArgs(['publish', 'nope'], TOKEN_ENV))
+      const badId = yield* Effect.flip(parseCliArgs(['publish', 'no.pe'], TOKEN_ENV))
 
       expect(Predicate.isTagged(badId, 'CliUsageError')).toBe(true)
 

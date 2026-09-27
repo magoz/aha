@@ -9,8 +9,18 @@
 - The owner bearer allows mutations and listing. The private-read bearer
   allows `GET`/`HEAD` of content only. The two tokens must differ.
 - `Host`, `X-Forwarded-*`, cookies, and client Tailscale IPs grant nothing.
-- IDs are 128-bit base64url (`[A-Za-z0-9_-]{22}`). Anything else never
-  becomes a storage key.
+- IDs are readable names chosen by the owner at upload (new names:
+  lowercase letters, digits and single dashes, up to 80 characters; `api`
+  is reserved). Older random 22-character IDs remain valid. Only
+  `[A-Za-z0-9_-]{1,80}` ever becomes a storage key. Uploads are create-only
+  (conditional `If-None-Match: *`), so a taken name returns 409 and never
+  overwrites. A name with a leftover `public/<id>` marker also counts as
+  taken, so a later upload does not inherit it; `aha unpublish <id>` clears
+  a leftover marker. Concurrent publish, delete and re-upload of one name
+  are not transactional; the owner should not run them at the same time.
+- Names are guessable, so a public document is readable by anyone who
+  guesses or receives its URL. Privacy comes only from the missing marker,
+  never from the ID being secret.
 - Uploads are bounded to 2 MiB with server-side byte accounting; declared
   `Content-Length` values over the limit are rejected before storage, and
   actual bodies are re-checked. Only `text/html` is accepted and served.

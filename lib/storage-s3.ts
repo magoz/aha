@@ -11,6 +11,7 @@ import { Effect, Layer, Predicate } from 'effect'
 
 import type { ServiceConfig } from './config.js'
 import {
+  DocumentExists,
   DocumentNotFound,
   InvalidConfig,
   PreconditionFailed,
@@ -84,6 +85,11 @@ function isPreconditionFailed(cause: unknown): boolean {
   }
 
   return failureStatus(cause) === 412
+}
+
+// A conditional write that lost a race with another conditional write to the same key.
+function isConditionalConflict(cause: unknown): boolean {
+  return failureCode(cause) === 'ConditionalRequestConflict'
 }
 
 function toStorageError(operation: string): StorageUnavailable {
@@ -272,7 +278,10 @@ export function makeS3Storage(client: S3Client, bucket: string) {
       id: PlanId,
       body: Uint8Array,
       options: PutOptions
-    ): Effect.Effect<string, StorageUnavailable | DocumentNotFound | PreconditionFailed> =>
+    ): Effect.Effect<
+      string,
+      StorageUnavailable | DocumentNotFound | PreconditionFailed | DocumentExists
+    > =>
       Effect.gen(function* () {
         const input: PutObjectCommandInput = {
           Bucket: bucket,
@@ -281,16 +290,28 @@ export function makeS3Storage(client: S3Client, bucket: string) {
           ContentType: options.contentType
         }
 
-        if (options.ifMatch !== null) {
+        if (options.createOnly) {
+          input.IfNoneMatch = '*'
+        } else if (options.ifMatch !== null) {
           input.IfMatch = options.ifMatch
         }
 
         const put = yield* Effect.tryPromise({
           try: () => client.send(new PutObjectCommand(input)),
-          catch: (cause) =>
-            isPreconditionFailed(cause)
-              ? new PreconditionFailed({ id })
-              : toStorageError('putDocument:request-failed')
+          catch: (cause) => {
+            if (
+              options.createOnly &&
+              (isPreconditionFailed(cause) || isConditionalConflict(cause))
+            ) {
+              return new DocumentExists({ id })
+            }
+
+            if (isPreconditionFailed(cause)) {
+              return new PreconditionFailed({ id })
+            }
+
+            return toStorageError('putDocument:request-failed')
+          }
         })
 
         const etag = put.ETag

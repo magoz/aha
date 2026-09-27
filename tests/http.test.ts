@@ -25,14 +25,20 @@ function get(url: string, authorization: string | null): AhaRequest {
   return { method: 'GET', url, headers, body: null }
 }
 
-function postDocument(body: Uint8Array, authorization: string | null): AhaRequest {
+function postDocument(
+  body: Uint8Array,
+  authorization: string | null,
+  name: string | null = 'sample-doc'
+): AhaRequest {
   const headers: HeaderMap = { 'content-type': 'text/html' }
 
   if (authorization !== null) {
     headers['authorization'] = authorization
   }
 
-  return { method: 'POST', url: '/api/documents', headers, body }
+  const url = name === null ? '/api/documents' : `/api/documents?name=${name}`
+
+  return { method: 'POST', url, headers, body }
 }
 
 const CreatedPayload = Schema.Struct({ id: Schema.String, url: Schema.String })
@@ -285,12 +291,16 @@ describe('http boundary', () => {
 
       const paths = [
         '/../secret',
+        '/has.dot',
+        '/api',
+        '/sample-doc.html',
+        '/sample-doc/extra',
+        `/${'a'.repeat(81)}`,
         '/%2e%2e/secret',
         '/api//documents',
         '/api/documents/../escape-here-abcdef',
-        '/not-an-id',
-        '/AAAAAAAAAAAAAAAAAAAAAAA',
-        '/api/documents/not-an-id-here-zzzz'
+        '/api/documents/bad.id',
+        '/api/documents/%2e%2e'
       ]
 
       for (const path of paths) {
@@ -447,6 +457,112 @@ describe('http boundary', () => {
       ).pipe(Effect.provide(ctx.layer))
 
       expect(blocked.status).toBe(409)
+    })
+  )
+
+  it.effect('routes readable names and legacy ids to documents', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+      const legacy = 'AbCdEfGhIjKlMnOpQr_-12'
+
+      ctx.state.documents.set(legacy, { body: htmlBytes(SAMPLE), etag: '"legacy"', version: 1 })
+
+      const created = yield* handleAhaRequest(
+        postDocument(htmlBytes(SAMPLE), ownerAuth(), 'q3-launch-plan'),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(created.status).toBe(201)
+      expect(yield* createdId(responseText(created))).toBe('q3-launch-plan')
+      expect(yield* createdUrl(responseText(created))).toBe('https://aha.oox.sh/q3-launch-plan')
+
+      for (const id of ['q3-launch-plan', legacy]) {
+        const privateBefore = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+
+        expect(privateBefore.status).toBe(404)
+
+        const publish = yield* handleAhaRequest(
+          {
+            method: 'POST',
+            url: `/api/documents/${id}/publish`,
+            headers: { authorization: ownerAuth() },
+            body: null
+          },
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+
+        expect(publish.status).toBe(200)
+
+        const open = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+
+        expect(open.status).toBe(200)
+        expect(responseText(open)).toBe(SAMPLE)
+
+        const ownerRead = yield* handleAhaRequest(
+          get(`/api/documents/${id}`, ownerAuth()),
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+
+        expect(ownerRead.status).toBe(200)
+      }
+    })
+  )
+
+  it.effect('rejects taken names with 409 without touching the original', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      const first = yield* handleAhaRequest(
+        postDocument(htmlBytes(SAMPLE), ownerAuth(), 'taken-name'),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(first.status).toBe(201)
+
+      const clash = yield* handleAhaRequest(
+        postDocument(htmlBytes('<!doctype html><p>intruder</p>'), ownerAuth(), 'taken-name'),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(clash.status).toBe(409)
+      expect(responseText(clash)).toBe(JSON.stringify({ error: 'name-taken' }))
+
+      const read = yield* handleAhaRequest(
+        get('/api/documents/taken-name', ownerAuth()),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(responseText(read)).toBe(SAMPLE)
+    })
+  )
+
+  it.effect('rejects uploads without a valid name with 400', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+      const names = [null, '', 'Upper', 'has.dot', '..', '%2e%2e', 'a%2Fb', 'double--dash', 'api']
+
+      for (const name of names) {
+        const response = yield* handleAhaRequest(
+          postDocument(htmlBytes(SAMPLE), ownerAuth(), name),
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+
+        expect(response.status).toBe(400)
+        expect(responseText(response)).toBe(JSON.stringify({ error: 'invalid-name' }))
+      }
+
+      expect(ctx.state.documents.size).toBe(0)
+
+      const anonymous = yield* handleAhaRequest(
+        postDocument(htmlBytes(SAMPLE), null, null),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(anonymous.status).toBe(401)
     })
   )
 })

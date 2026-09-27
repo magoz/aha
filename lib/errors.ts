@@ -14,6 +14,10 @@ export class PreconditionFailed extends Schema.TaggedError<PreconditionFailed>()
   { id: Schema.String }
 ) {}
 
+export class DocumentExists extends Schema.TaggedError<DocumentExists>()('DocumentExists', {
+  id: Schema.String
+}) {}
+
 export class PayloadTooLarge extends Schema.TaggedError<PayloadTooLarge>()('PayloadTooLarge', {
   limitBytes: Schema.Number
 }) {}

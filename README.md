@@ -24,13 +24,13 @@ pnpm verify
   - `aha/<id>.html` holds the current HTML document.
   - Empty `public/<id>` object means public. Missing marker means private.
 - Every anonymous `GET`/`HEAD` checks the marker first. Storage failures fail closed (deny, never treat as missing or public). HTML and access decisions are never cached.
-- Stable IDs: cryptographically random 128-bit values encoded as 22-character base64url (`[A-Za-z0-9_-]{22}`). Updates replace content in place and preserve visibility. No version history in v1.
+- Readable IDs: the owner picks a name at upload (`POST /api/documents?name=<name>`, lowercase letters, digits and single dashes, up to 80 characters, `api` reserved). Uploads never overwrite: a taken name returns 409 (enforced by a conditional `If-None-Match: *` write). Older random 22-character IDs keep working. Updates replace content in place and preserve visibility. No version history in v1.
 - `lib/` holds the Effect core (`AhaStorage` Context service, domain Effects, HTTP boundary). Runtime adapters run Effects only at entrypoints (`api/`, `server/`, `gateway/`, `cli/`, `infra/`). Tests use a typed in-memory fake (`tests/fake-storage.ts`); no module mocks.
 
 ## CLI
 
 ```sh
-pnpm aha upload ./page.html
+pnpm aha upload ./page.html [--name <name>]   # name defaults to the page <title>
 pnpm aha update <id> ./page.html [--if-match <etag>]
 pnpm aha publish <id>
 pnpm aha unpublish <id>
@@ -81,7 +81,7 @@ The default run serves the file on loopback with the production security headers
 - Owner bearer token permits mutations and listing. A separate private-read bearer permits only `GET`/`HEAD` of document content. Public anonymous reads require a present marker.
 - Marker-check errors fail closed with 502/503, never 404 and never public content.
 - Never trust `Host`, `X-Forwarded-*`, cookies, client-supplied credentials, or Tailscale IP for access. Private access is decided only by bearer credential (owner/private-read) at the origin, or by the marker for anonymous reads.
-- Invalid IDs and path traversal never become storage keys; only strict 22-character base64url IDs are accepted.
+- Invalid IDs and path traversal never become storage keys; only `[A-Za-z0-9_-]{1,80}` IDs are accepted.
 - No raw object routes. `/` and `/api/health` disclose no IDs. No secrets in logs or errors.
 - Every HTML and status response carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, and a restrictive CSP: opaque-origin `sandbox allow-scripts`, inline scripts and styles allowed, inline event-handler attributes blocked, no forms, frames, network or external resources, `data:` images/fonts only (`default-src 'none'; script-src 'unsafe-inline'; script-src-attr 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox allow-scripts`).
 - `HEAD`, `Range`, and conditional requests (`If-None-Match`, `If-Modified-Since`, `Range`) cannot bypass access: markers are checked before any content handling, ranges are ignored (full bounded body or `416` is never used to leak existence beyond the access decision).
@@ -142,4 +142,4 @@ See `docs/` for details. No host changes are made by this repository.
 
 ## Validation
 
-`pnpm verify` runs format check, typecheck, lint, tests and build. Tests cover absent/present/deleted markers, owner/private-read/public separation, storage-unavailable denial, `HEAD`/range/conditional handling, path traversal and invalid IDs, upload limits including absent/wrong `Content-Length`, invalid/missing config, update visibility preservation, private proxy path/redirect/header restrictions, CLI parsing and JSON output, and a Node HTTP smoke lifecycle. CI runs frozen install, `pnpm verify`, an offline Vercel function build, and isolated infrastructure checks, all without deployment credentials. See [the platform build gate](docs/deployment.md#platform-build-gate).
+`pnpm verify` runs format check, typecheck, lint, tests and build. Tests cover absent/present/deleted markers, owner/private-read/public separation, storage-unavailable denial, `HEAD`/range/conditional handling, path traversal and invalid IDs, create-only name collisions, upload limits including absent/wrong `Content-Length`, invalid/missing config, update visibility preservation, private proxy path/redirect/header restrictions, CLI parsing and JSON output, and a Node HTTP smoke lifecycle. CI runs frozen install, `pnpm verify`, an offline Vercel function build, and isolated infrastructure checks, all without deployment credentials. See [the platform build gate](docs/deployment.md#platform-build-gate).

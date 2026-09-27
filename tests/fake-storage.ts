@@ -1,6 +1,11 @@
 import { Effect } from 'effect'
 
-import { DocumentNotFound, PreconditionFailed, StorageUnavailable } from '../lib/errors.js'
+import {
+  DocumentExists,
+  DocumentNotFound,
+  PreconditionFailed,
+  StorageUnavailable
+} from '../lib/errors.js'
 import { isPlanId } from '../lib/plan-id.js'
 import type { PlanId } from '../lib/plan-id.js'
 import type {
@@ -95,14 +100,25 @@ export function createFakeStorage(state: FakeStorageState): AhaStorage {
       id: PlanId,
       body: Uint8Array,
       options: PutOptions
-    ): Effect.Effect<string, StorageUnavailable | DocumentNotFound | PreconditionFailed> =>
+    ): Effect.Effect<
+      string,
+      StorageUnavailable | DocumentNotFound | PreconditionFailed | DocumentExists
+    > =>
       Effect.suspend(
-        (): Effect.Effect<string, StorageUnavailable | DocumentNotFound | PreconditionFailed> => {
+        (): Effect.Effect<
+          string,
+          StorageUnavailable | DocumentNotFound | PreconditionFailed | DocumentExists
+        > => {
           if (state.failAll) {
             return Effect.fail(new StorageUnavailable({ operation: 'putDocument:injected' }))
           }
 
-          if (options.ifMatch !== null) {
+          // Mirrors a conditional `If-None-Match: *` put: checked and written atomically.
+          if (options.createOnly) {
+            if (state.documents.has(id)) {
+              return Effect.fail(new DocumentExists({ id }))
+            }
+          } else if (options.ifMatch !== null) {
             const current = state.documents.get(id)
 
             if (current === undefined) {
