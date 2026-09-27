@@ -4,6 +4,7 @@ import { canReadContent, identifyCaller } from './auth.js'
 import type { Caller } from './auth.js'
 import type { ServiceConfig } from './config.js'
 import {
+  DocumentExists,
   DocumentNotFound,
   PayloadTooLarge,
   PreconditionFailed,
@@ -12,7 +13,7 @@ import {
   UnsupportedMediaType
 } from './errors.js'
 import { HTML_CONTENT_TYPE, MAX_HTML_BYTES, isHtmlContentType } from './html-limits.js'
-import { generatePlanId, parsePlanId } from './plan-id.js'
+import { InvalidDocumentName, parseNewDocumentName, parsePlanId } from './plan-id.js'
 import type { InvalidPlanId, PlanId } from './plan-id.js'
 import { AhaStorageTag } from './storage.js'
 import type { ListEntry, StoredDocument } from './storage.js'
@@ -32,6 +33,7 @@ function callerFromHeaders(authorization: string | null, config: ServiceConfig):
 }
 
 export function uploadDocument(
+  name: string | null,
   body: Uint8Array,
   contentType: string,
   authorization: string | null,
@@ -41,9 +43,11 @@ export function uploadDocument(
   | Unauthorized
   | UnsupportedMediaType
   | PayloadTooLarge
+  | InvalidDocumentName
   | StorageUnavailable
   | DocumentNotFound
-  | PreconditionFailed,
+  | PreconditionFailed
+  | DocumentExists,
   AhaStorageTag
 > {
   return Effect.gen(function* () {
@@ -61,11 +65,16 @@ export function uploadDocument(
       return yield* new PayloadTooLarge({ limitBytes: MAX_HTML_BYTES })
     }
 
-    const id = yield* generatePlanId()
+    if (name === null) {
+      return yield* new InvalidDocumentName({ value: '' })
+    }
+
+    const id = yield* parseNewDocumentName(name)
     const storage = yield* AhaStorageTag
 
     const etag = yield* storage.putDocument(id, body, {
       ifMatch: null,
+      createOnly: true,
       contentType: HTML_CONTENT_TYPE
     })
 
@@ -88,6 +97,7 @@ export function updateDocument(
   | StorageUnavailable
   | DocumentNotFound
   | PreconditionFailed
+  | DocumentExists
   | InvalidPlanId,
   AhaStorageTag
 > {
@@ -110,7 +120,11 @@ export function updateDocument(
     const storage = yield* AhaStorageTag
     yield* storage.headDocument(id)
 
-    return yield* storage.putDocument(id, body, { ifMatch, contentType: HTML_CONTENT_TYPE })
+    return yield* storage.putDocument(id, body, {
+      ifMatch,
+      createOnly: false,
+      contentType: HTML_CONTENT_TYPE
+    })
   })
 }
 

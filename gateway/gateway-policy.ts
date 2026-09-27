@@ -1,4 +1,4 @@
-import { isPlanId } from '../lib/plan-id.js'
+import { isPlanId, isReservedDocumentName } from '../lib/plan-id.js'
 
 const ALLOWED_METHODS = new Set(['GET', 'HEAD'])
 
@@ -26,7 +26,7 @@ export function gatewayDocumentId(pathname: string): string | null {
 
   const id = normalized.slice(1)
 
-  if (!isPlanId(id)) {
+  if (!isPlanId(id) || isReservedDocumentName(id)) {
     return null
   }
 

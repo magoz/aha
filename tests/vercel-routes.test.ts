@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+
+import { Option, Schema } from 'effect'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import documentRoute from '../api/documents/[id].js'
@@ -10,6 +13,29 @@ import rootRoute from '../api/root.js'
 import { TEST_CONFIG, ownerAuth } from './helpers.js'
 
 const VALID_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
+
+const VercelConfigSchema = Schema.Struct({
+  rewrites: Schema.Array(Schema.Struct({ source: Schema.String, destination: Schema.String }))
+})
+
+function publicDocumentRewrite(): RegExp | null {
+  const decoded = Schema.decodeUnknownOption(VercelConfigSchema)(
+    JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'))
+  )
+
+  if (Option.isNone(decoded)) {
+    return null
+  }
+
+  const rewrite = decoded.value.rewrites.find(
+    (entry) => entry.destination === '/api/public-document?id=:id'
+  )
+
+  const match = rewrite === undefined ? null : /^\/:id\((.+)\)$/.exec(rewrite.source)
+  const pattern = match?.[1]
+
+  return pattern === undefined ? null : new RegExp(`^/${pattern}$`)
+}
 
 const ENV_KEYS = [
   'AHA_OWNER_TOKEN',
@@ -103,7 +129,7 @@ describe('vercel route files', () => {
     expect(method.status).toBe(405)
 
     const badId = await documentRoute.fetch(
-      authed('https://aha.oox.sh/api/documents/not-an-id', 'GET')
+      authed('https://aha.oox.sh/api/documents/not.an.id', 'GET')
     )
 
     expect(badId.status).toBe(400)
@@ -131,6 +157,53 @@ describe('vercel route files', () => {
 
     const response = await publicDocumentRoute.fetch(
       new Request('https://aha.oox.sh/api/public-document')
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('rewrites single-segment readable names and legacy ids, nothing else', () => {
+    const rewrite = publicDocumentRewrite()
+
+    expect(rewrite).not.toBe(null)
+
+    if (rewrite === null) {
+      return
+    }
+
+    for (const path of ['/q3-launch-plan', `/${VALID_ID}`, '/a', `/${'a'.repeat(80)}`]) {
+      expect(rewrite.test(path)).toBe(true)
+    }
+
+    for (const path of [
+      '/',
+      '/api/health',
+      '/api/documents',
+      '/api/documents/q3-launch-plan',
+      '/q3-launch-plan/extra',
+      '/has.dot',
+      '/%2e%2e',
+      `/${'a'.repeat(81)}`
+    ]) {
+      expect(rewrite.test(path)).toBe(false)
+    }
+  })
+
+  it('serves readable names through the rewritten public-document url', async () => {
+    setRefusedStorageEnv()
+
+    const response = await publicDocumentRoute.fetch(
+      new Request('https://aha.oox.sh/api/public-document?id=q3-launch-plan')
+    )
+
+    expect(response.status).toBe(502)
+  }, 15000)
+
+  it('never treats the reserved api segment as a document', async () => {
+    setRefusedStorageEnv()
+
+    const response = await publicDocumentRoute.fetch(
+      new Request('https://aha.oox.sh/api/public-document?id=api')
     )
 
     expect(response.status).toBe(404)

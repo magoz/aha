@@ -21,12 +21,15 @@ import {
 
 const SAMPLE = '<!doctype html><html><body><p>synthetic fixture</p></body></html>'
 
+const LEGACY_ID = 'AbCdEfGhIjKlMnOpQr_-12'
+
 describe('documents', () => {
   it.effect('uploads privately and reads back with owner token', () =>
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -47,6 +50,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -66,6 +70,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -95,6 +100,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -126,6 +132,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -147,6 +154,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -213,6 +221,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -243,6 +252,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -266,9 +276,13 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const wrongType = yield* Effect.flip(
-        uploadDocument(htmlBytes(SAMPLE), 'application/json', ownerAuth(), TEST_CONFIG).pipe(
-          Effect.provide(ctx.layer)
-        )
+        uploadDocument(
+          'wrong-type',
+          htmlBytes(SAMPLE),
+          'application/json',
+          ownerAuth(),
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
       )
 
       expect(Predicate.isTagged(wrongType, 'UnsupportedMediaType')).toBe(true)
@@ -276,7 +290,9 @@ describe('documents', () => {
       const big = new Uint8Array(2 * 1024 * 1024 + 1)
 
       const tooLarge = yield* Effect.flip(
-        uploadDocument(big, 'text/html', ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+        uploadDocument('too-big', big, 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
       )
 
       expect(Predicate.isTagged(tooLarge, 'PayloadTooLarge')).toBe(true)
@@ -288,6 +304,7 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const first = yield* uploadDocument(
+        'sample-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -295,6 +312,7 @@ describe('documents', () => {
       ).pipe(Effect.provide(ctx.layer))
 
       const second = yield* uploadDocument(
+        'second-doc',
         htmlBytes(SAMPLE),
         'text/html',
         ownerAuth(),
@@ -314,7 +332,127 @@ describe('documents', () => {
       expect(all.length).toBe(2)
       expect(open.length).toBe(1)
       expect(open[0]?.id).toBe(first.id)
-      expect(second.id.length).toBe(22)
+      expect(second.id).toBe('second-doc')
+    })
+  )
+
+  it.effect('uploads under the requested readable name', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      const created = yield* uploadDocument(
+        'q3-launch-plan',
+        htmlBytes(SAMPLE),
+        'text/html',
+        ownerAuth(),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(created.id).toBe('q3-launch-plan')
+      expect(ctx.state.documents.has('q3-launch-plan')).toBe(true)
+      expect(ctx.state.markers.size).toBe(0)
+    })
+  )
+
+  it.effect('refuses to overwrite a taken name and leaves the original untouched', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      const original = yield* uploadDocument(
+        'taken-name',
+        htmlBytes(SAMPLE),
+        'text/html',
+        ownerAuth(),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      yield* publishDocument(original.id, ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+
+      const clash = yield* Effect.flip(
+        uploadDocument(
+          'taken-name',
+          htmlBytes('<!doctype html><p>intruder</p>'),
+          'text/html',
+          ownerAuth(),
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+      )
+
+      expect(Predicate.isTagged(clash, 'DocumentExists')).toBe(true)
+
+      const read = yield* readDocumentWithAccess('taken-name', null, TEST_CONFIG).pipe(
+        Effect.provide(ctx.layer)
+      )
+
+      expect(bytesToString(read.document.body)).toBe(SAMPLE)
+      expect(read.document.etag).toBe(original.etag)
+    })
+  )
+
+  it.effect('rejects missing and invalid names before touching storage', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+      const names = [null, '', 'Upper', 'has.dot', 'a/b', '..', '%2e', '-lead', 'api', LEGACY_ID]
+
+      for (const name of names) {
+        const failure = yield* Effect.flip(
+          uploadDocument(name, htmlBytes(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+            Effect.provide(ctx.layer)
+          )
+        )
+
+        expect(Predicate.isTagged(failure, 'InvalidDocumentName')).toBe(true)
+      }
+
+      expect(ctx.state.documents.size).toBe(0)
+    })
+  )
+
+  it.effect('checks ownership before the name', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      const failure = yield* Effect.flip(
+        uploadDocument(null, htmlBytes(SAMPLE), 'text/html', privateAuth(), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+      )
+
+      expect(Predicate.isTagged(failure, 'Unauthorized')).toBe(true)
+    })
+  )
+
+  it.effect('legacy random ids stay readable, updatable and publishable', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      ctx.state.documents.set(LEGACY_ID, { body: htmlBytes(SAMPLE), etag: '"legacy"', version: 1 })
+
+      const owner = yield* readDocumentWithAccess(LEGACY_ID, ownerAuth(), TEST_CONFIG).pipe(
+        Effect.provide(ctx.layer)
+      )
+
+      expect(bytesToString(owner.document.body)).toBe(SAMPLE)
+
+      yield* publishDocument(LEGACY_ID, ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+
+      const revised = '<!doctype html><html><body><p>legacy v2</p></body></html>'
+
+      yield* updateDocument(
+        LEGACY_ID,
+        htmlBytes(revised),
+        'text/html',
+        ownerAuth(),
+        '"legacy"',
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      const open = yield* readDocumentWithAccess(LEGACY_ID, null, TEST_CONFIG).pipe(
+        Effect.provide(ctx.layer)
+      )
+
+      expect(bytesToString(open.document.body)).toBe(revised)
+      expect(open.isPublic).toBe(true)
     })
   )
 })

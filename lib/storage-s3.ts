@@ -11,6 +11,7 @@ import { Effect, Layer, Predicate } from 'effect'
 
 import type { ServiceConfig } from './config.js'
 import {
+  DocumentExists,
   DocumentNotFound,
   InvalidConfig,
   PreconditionFailed,
@@ -272,7 +273,10 @@ export function makeS3Storage(client: S3Client, bucket: string) {
       id: PlanId,
       body: Uint8Array,
       options: PutOptions
-    ): Effect.Effect<string, StorageUnavailable | DocumentNotFound | PreconditionFailed> =>
+    ): Effect.Effect<
+      string,
+      StorageUnavailable | DocumentNotFound | PreconditionFailed | DocumentExists
+    > =>
       Effect.gen(function* () {
         const input: PutObjectCommandInput = {
           Bucket: bucket,
@@ -281,16 +285,21 @@ export function makeS3Storage(client: S3Client, bucket: string) {
           ContentType: options.contentType
         }
 
-        if (options.ifMatch !== null) {
+        if (options.createOnly) {
+          input.IfNoneMatch = '*'
+        } else if (options.ifMatch !== null) {
           input.IfMatch = options.ifMatch
         }
 
         const put = yield* Effect.tryPromise({
           try: () => client.send(new PutObjectCommand(input)),
-          catch: (cause) =>
-            isPreconditionFailed(cause)
-              ? new PreconditionFailed({ id })
-              : toStorageError('putDocument:request-failed')
+          catch: (cause) => {
+            if (!isPreconditionFailed(cause)) {
+              return toStorageError('putDocument:request-failed')
+            }
+
+            return options.createOnly ? new DocumentExists({ id }) : new PreconditionFailed({ id })
+          }
         })
 
         const etag = put.ETag

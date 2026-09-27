@@ -12,6 +12,7 @@ const ListItemSchema = Schema.Struct({
 
 const ListResponseSchema = Schema.Array(ListItemSchema)
 
+import { deriveDocumentName } from './document-name.js'
 import type { BuildRequest, CliRequest, ComponentsRequest } from './parser.js'
 import { CliUsageError } from './parser.js'
 
@@ -73,15 +74,28 @@ export function runCliRequest(
         catch: () => new CliUsageError({ message: `cannot read file: ${request.file}` })
       })
 
+      const name = yield* deriveDocumentName(request.name, new TextDecoder().decode(body))
+      const path = `/api/documents?name=${encodeURIComponent(name)}`
+
       const response = yield* Effect.tryPromise({
         try: () =>
-          fetch(apiUrl(request.endpoint, '/api/documents'), {
+          fetch(apiUrl(request.endpoint, path), {
             method: 'POST',
             headers: { ...authHeaders(request.token), 'content-type': 'text/html; charset=utf-8' },
             body
           }),
         catch: () => new CliRequestError({ message: 'request failed' })
       })
+
+      if (response.status === 409) {
+        return yield* requestError(
+          `name "${name}" is already taken; pass a different --name NAME (or use aha update ${name} FILE)`
+        )
+      }
+
+      if (response.status === 400) {
+        return yield* requestError(`server rejected document name "${name}"; pass --name NAME`)
+      }
 
       if (response.status !== 201) {
         return yield* requestError(`upload failed with status ${String(response.status)}`)

@@ -15,6 +15,7 @@ export class CliUsageError extends Schema.TaggedError<CliUsageError>()('CliUsage
 export interface UploadRequest {
   readonly command: 'upload'
   readonly file: string
+  readonly name: string | null
   readonly endpoint: string
   readonly publicUrl: string
   readonly token: string
@@ -338,10 +339,24 @@ export function parseCliArgs(
     }
 
     if (command === 'upload') {
-      const file = args[1]
+      const usage = 'usage: aha upload FILE [--name NAME] [--endpoint URL] [--token TOKEN]'
+      const nameIndex = args.indexOf('--name')
+      const nameRaw = nameIndex === -1 ? undefined : args[nameIndex + 1]
+
+      if (nameIndex !== -1 && (nameRaw === undefined || nameRaw.length === 0)) {
+        return fail(usage)
+      }
+
+      const name = nameRaw ?? null
+
+      const positional = args.filter(
+        (_, index) => nameIndex === -1 || (index !== nameIndex && index !== nameIndex + 1)
+      )
+
+      const file = positional[1]
 
       if (file === undefined) {
-        return fail('usage: aha upload FILE [--endpoint URL] [--token TOKEN]')
+        return fail(usage)
       }
 
       return Effect.flatMap(
@@ -351,7 +366,7 @@ export function parseCliArgs(
           token: resolveOwnerToken(globals.token, env)
         }),
         ({ endpoint, publicUrl, token }) =>
-          Effect.succeed({ command: 'upload' as const, file, endpoint, publicUrl, token })
+          Effect.succeed({ command: 'upload' as const, file, name, endpoint, publicUrl, token })
       )
     }
 

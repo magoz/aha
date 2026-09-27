@@ -6,7 +6,7 @@
       "destination": "/api/root"
     },
     {
-      "source": "/:id([A-Za-z0-9_-]{22})",
+      "source": "/:id([A-Za-z0-9_-]{1,80})",
       "destination": "/api/public-document?id=:id"
     }
   ],

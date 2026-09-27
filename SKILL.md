@@ -67,11 +67,14 @@ page in one pass, and preview once more only after a fix.
 3. Upload privately and capture the URL:
 
    ```sh
-   aha upload ./page.built.html
+   aha upload ./page.built.html [--name "Short Name"]
    # prints {"id":"<id>","url":"https://aha.oox.sh/<id>","etag":"..."}
    ```
 
-   The printed JSON is the confirmation. Uploads are always private until an
+   The ID is a readable slug of `--name`, or of the page `<title>` when
+   `--name` is omitted. Names are never overwritten: if the name is taken,
+   upload fails; pick a different `--name` (or `aha update <id>` to replace
+   that document). The printed JSON is the confirmation. Uploads are always private until an
    explicit `aha publish`, so don't re-list, read back, or probe the URL
    unless the upload failed.
 
