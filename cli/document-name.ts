@@ -39,11 +39,18 @@ export function decodeBasicEntities(value: string): string {
   return value.replace(/&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z]+);/g, decodeEntity)
 }
 
-// Comments and SVG can hold their own <title> elements; only the document title names the page.
-const IGNORED_MARKUP_PATTERN = /<!--[\s\S]*?-->|<svg\b[\s\S]*?<\/svg\s*>/gi
+// Comments, scripts and styles can contain `<title>` text, and SVG has its own `<title>` elements.
+// Only a title before the first SVG, outside those, names the page.
+const IGNORED_MARKUP_PATTERN =
+  /<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>/gi
+
+const SVG_START_PATTERN = /<svg\b/i
 
 export function htmlTitle(html: string): string | null {
-  const match = TITLE_PATTERN.exec(html.replace(IGNORED_MARKUP_PATTERN, ''))
+  const visible = html.replace(IGNORED_MARKUP_PATTERN, '')
+  const svgStart = visible.search(SVG_START_PATTERN)
+  const beforeSvg = svgStart === -1 ? visible : visible.slice(0, svgStart)
+  const match = TITLE_PATTERN.exec(beforeSvg)
   const raw = match?.[1]
 
   if (raw === undefined) {

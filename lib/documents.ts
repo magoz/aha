@@ -207,8 +207,10 @@ export function unpublishDocument(
 
     const id = yield* parsePlanId(idString)
     const storage = yield* AhaStorageTag
-    yield* storage.headDocument(id)
+    // Remove the marker first so a leftover marker without a document can still be cleared;
+    // removing a marker never exposes anything.
     yield* storage.deleteMarker(id)
+    yield* storage.headDocument(id)
   })
 }
 

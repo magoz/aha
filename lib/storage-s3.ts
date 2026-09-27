@@ -89,11 +89,7 @@ function isPreconditionFailed(cause: unknown): boolean {
 
 // A conditional write that lost a race with another conditional write to the same key.
 function isConditionalConflict(cause: unknown): boolean {
-  if (failureCode(cause) === 'ConditionalRequestConflict') {
-    return true
-  }
-
-  return failureStatus(cause) === 409
+  return failureCode(cause) === 'ConditionalRequestConflict'
 }
 
 function toStorageError(operation: string): StorageUnavailable {

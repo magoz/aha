@@ -15,7 +15,9 @@
   `[A-Za-z0-9_-]{1,80}` ever becomes a storage key. Uploads are create-only
   (conditional `If-None-Match: *`), so a taken name returns 409 and never
   overwrites. A name with a leftover `public/<id>` marker also counts as
-  taken, so an upload can never inherit publication.
+  taken, so a later upload does not inherit it; `aha unpublish <id>` clears
+  a leftover marker. Concurrent publish, delete and re-upload of one name
+  are not transactional; the owner should not run them at the same time.
 - Names are guessable, so a public document is readable by anyone who
   guesses or receives its URL. Privacy comes only from the missing marker,
   never from the ID being secret.

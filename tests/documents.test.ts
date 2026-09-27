@@ -423,8 +423,37 @@ describe('documents', () => {
         )
       )
 
-      expect(Predicate.isTagged(failure, 'StorageUnavailable')).toBe(true)
+      expect(
+        Predicate.isTagged(failure, 'StorageUnavailable') &&
+          failure.operation === 'markerExists:injected'
+      ).toBe(true)
       expect(ctx.state.documents.size).toBe(0)
+    })
+  )
+
+  it.effect('unpublish clears a leftover marker so the name can be reused', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      ctx.state.markers.add('orphan-name')
+
+      const missing = yield* Effect.flip(
+        unpublishDocument('orphan-name', ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+      )
+
+      expect(Predicate.isTagged(missing, 'DocumentNotFound')).toBe(true)
+      expect(ctx.state.markers.has('orphan-name')).toBe(false)
+
+      const created = yield* uploadDocument(
+        'orphan-name',
+        htmlBytes(SAMPLE),
+        'text/html',
+        ownerAuth(),
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(created.id).toBe('orphan-name')
+      expect(ctx.state.markers.has('orphan-name')).toBe(false)
     })
   )
 
