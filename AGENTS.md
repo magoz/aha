@@ -6,6 +6,7 @@ Personal HTML publishing for agents. Public repository: never commit credentials
 
 - TypeScript + Effect, no Next.js or React. Vercel handles public HTTP; private Cloudflare R2 stores documents and publication markers.
 - `aha/<id>.html` stores the current HTML. Empty `public/<id>` object means public. Missing marker means private. The bucket and all direct access domains stay private/disabled.
+- IDs are owner-chosen readable names (legacy random IDs stay valid), so URLs are guessable; privacy comes only from the marker. Creates are conditional writes and never overwrite an existing name.
 - Every anonymous GET and HEAD checks publication. Storage failures fail closed. No caching of HTML or access decisions. Updates preserve publication state.
 - Administrative bearer credential permits mutations and listing. Separate private-read credential permits document reads only, for a tailnet-only gateway. Never infer private access from client IP, Host, forwarded headers, or DNS alone.
 - Same hostname via split DNS is an operational setup: private gateway on the tailnet; Vercel on public DNS. The gateway must be constrained to a fixed HTTPS upstream and safe document-read paths.
