@@ -4,7 +4,6 @@ import { Effect, Schema } from 'effect'
 // readable names. No dots, slashes or percent signs, so an ID can never become an arbitrary key.
 const PLAN_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/
 
-// Stricter rule for names chosen when creating a document.
 const NEW_DOCUMENT_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export const MAX_DOCUMENT_NAME_LENGTH = 80
@@ -44,28 +43,21 @@ export function isReservedDocumentName(value: string): boolean {
   return RESERVED_DOCUMENT_NAMES.has(value.toLowerCase())
 }
 
-export function isNewDocumentName(value: string): value is PlanId {
-  if (value.length === 0 || value.length > MAX_DOCUMENT_NAME_LENGTH) {
-    return false
-  }
+// A name chosen when creating a document: stricter than an accepted ID.
+export const NewDocumentNameSchema = PlanIdSchema.pipe(
+  Schema.check(
+    Schema.isMaxLength(MAX_DOCUMENT_NAME_LENGTH),
+    Schema.isPattern(NEW_DOCUMENT_NAME_PATTERN),
+    Schema.makeFilter((value: string) => !isReservedDocumentName(value))
+  )
+)
 
-  if (!NEW_DOCUMENT_NAME_PATTERN.test(value)) {
-    return false
-  }
-
-  if (isReservedDocumentName(value)) {
-    return false
-  }
-
-  return isPlanId(value)
-}
+export const isNewDocumentName = Schema.is(NewDocumentNameSchema)
 
 export function parseNewDocumentName(value: string): Effect.Effect<PlanId, InvalidDocumentName> {
-  if (isNewDocumentName(value)) {
-    return Effect.succeed(value)
-  }
-
-  return Effect.fail(new InvalidDocumentName({ value }))
+  return Schema.decodeUnknownEffect(NewDocumentNameSchema)(value).pipe(
+    Effect.mapError(() => new InvalidDocumentName({ value }))
+  )
 }
 
 export function documentKey(id: PlanId): string {

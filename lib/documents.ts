@@ -72,6 +72,12 @@ export function uploadDocument(
     const id = yield* parseNewDocumentName(name)
     const storage = yield* AhaStorageTag
 
+    // A leftover marker (e.g. a publish racing a delete) would make a reused name public on
+    // upload. Treat it as taken; a failed check fails closed.
+    if (yield* storage.markerExists(id)) {
+      return yield* new DocumentExists({ id })
+    }
+
     const etag = yield* storage.putDocument(id, body, {
       ifMatch: null,
       createOnly: true,

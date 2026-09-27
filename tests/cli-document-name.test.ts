@@ -24,6 +24,12 @@ describe('cli document names', () => {
     expect(htmlTitle('<p>no title</p>')).toBe(null)
   })
 
+  it('ignores titles inside comments and SVG', () => {
+    expect(htmlTitle('<!-- <title>Draft</title> --><title>Final</title>')).toBe('Final')
+    expect(htmlTitle('<body><svg><circle><title>Revenue</title></circle></svg></body>')).toBe(null)
+    expect(htmlTitle('<svg><title>Chart</title></svg><title>Page</title>')).toBe('Page')
+  })
+
   it('slugifies to the new-name rule and truncates at a dash boundary', () => {
     expect(slugifyDocumentName('Q3 Launch Plan: v2.0 (draft)')).toBe('q3-launch-plan-v20-draft')
     expect(slugifyDocumentName('../../etc/passwd')).toBe('etcpasswd')

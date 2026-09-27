@@ -88,9 +88,7 @@ export function runCliRequest(
       })
 
       if (response.status === 409) {
-        return yield* requestError(
-          `name "${name}" is already taken; pass a different --name NAME (or use aha update ${name} FILE)`
-        )
+        return yield* requestError(`name "${name}" is already taken; pass a different --name NAME`)
       }
 
       if (response.status === 400) {

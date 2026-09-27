@@ -39,8 +39,11 @@ export function decodeBasicEntities(value: string): string {
   return value.replace(/&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z]+);/g, decodeEntity)
 }
 
+// Comments and SVG can hold their own <title> elements; only the document title names the page.
+const IGNORED_MARKUP_PATTERN = /<!--[\s\S]*?-->|<svg\b[\s\S]*?<\/svg\s*>/gi
+
 export function htmlTitle(html: string): string | null {
-  const match = TITLE_PATTERN.exec(html)
+  const match = TITLE_PATTERN.exec(html.replace(IGNORED_MARKUP_PATTERN, ''))
   const raw = match?.[1]
 
   if (raw === undefined) {

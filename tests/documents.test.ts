@@ -389,6 +389,45 @@ describe('documents', () => {
     })
   )
 
+  it.effect('treats a name with a leftover public marker as taken', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      ctx.state.markers.add('orphan-name')
+
+      const clash = yield* Effect.flip(
+        uploadDocument(
+          'orphan-name',
+          htmlBytes(SAMPLE),
+          'text/html',
+          ownerAuth(),
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+      )
+
+      expect(Predicate.isTagged(clash, 'DocumentExists')).toBe(true)
+      expect(ctx.state.documents.has('orphan-name')).toBe(false)
+      expect(ctx.state.markers.has('orphan-name')).toBe(true)
+    })
+  )
+
+  it.effect('fails closed when the marker check fails during upload', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+
+      ctx.state.failAll = true
+
+      const failure = yield* Effect.flip(
+        uploadDocument('any-name', htmlBytes(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+      )
+
+      expect(Predicate.isTagged(failure, 'StorageUnavailable')).toBe(true)
+      expect(ctx.state.documents.size).toBe(0)
+    })
+  )
+
   it.effect('rejects missing and invalid names before touching storage', () =>
     Effect.gen(function* () {
       const ctx = makeTestContext()

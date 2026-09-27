@@ -37,7 +37,7 @@ Personal HTML publishing for agents. Public repository: never commit credentials
 
 ## Validation
 
-Provide `pnpm verify`: format check, typecheck, lint, tests and build. Test absent/present/deleted markers, storage failures, forged private headers, credential separation, unsafe IDs, upload limits, update visibility preservation, and the constrained private gateway.
+Provide `pnpm verify`: format check, typecheck, lint, tests and build. Test absent/present/deleted markers, storage failures, forged private headers, credential separation, unsafe IDs, name collisions and leftover markers on create, upload limits, update visibility preservation, and the constrained private gateway.
 
 ## Git
 

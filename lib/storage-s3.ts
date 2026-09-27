@@ -87,6 +87,15 @@ function isPreconditionFailed(cause: unknown): boolean {
   return failureStatus(cause) === 412
 }
 
+// A conditional write that lost a race with another conditional write to the same key.
+function isConditionalConflict(cause: unknown): boolean {
+  if (failureCode(cause) === 'ConditionalRequestConflict') {
+    return true
+  }
+
+  return failureStatus(cause) === 409
+}
+
 function toStorageError(operation: string): StorageUnavailable {
   return new StorageUnavailable({ operation })
 }
@@ -294,11 +303,18 @@ export function makeS3Storage(client: S3Client, bucket: string) {
         const put = yield* Effect.tryPromise({
           try: () => client.send(new PutObjectCommand(input)),
           catch: (cause) => {
-            if (!isPreconditionFailed(cause)) {
-              return toStorageError('putDocument:request-failed')
+            if (
+              options.createOnly &&
+              (isPreconditionFailed(cause) || isConditionalConflict(cause))
+            ) {
+              return new DocumentExists({ id })
             }
 
-            return options.createOnly ? new DocumentExists({ id }) : new PreconditionFailed({ id })
+            if (isPreconditionFailed(cause)) {
+              return new PreconditionFailed({ id })
+            }
+
+            return toStorageError('putDocument:request-failed')
           }
         })
 
