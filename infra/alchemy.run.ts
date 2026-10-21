@@ -24,6 +24,7 @@ export default Alchemy.Stack(
 
     const bucket = yield* Cloudflare.R2.Bucket('aha-bucket', {
       name: bucketName,
+      publicAccess: false,
       forceDestroy: false
     }).pipe(RemovalPolicy.retain())
 

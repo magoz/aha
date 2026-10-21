@@ -2,13 +2,10 @@
 
 Operator-run Cloudflare R2 provisioning. This package is intentionally
 separate from the application: it has its own dependencies
-(`alchemy@2.0.0-beta.74` with `effect@4.0.0-rc.112` plus an explicit
-`@effect/platform-node@4.0.0-rc.112` pin, a known compatible baseline;
-`pnpm-workspace.yaml` additionally overrides
-`@effect/platform-node-shared` to rc.112 because the caret range floats
-to rc.116, which imports `effect/dist/ByteSize.js`, absent in effect
-rc.112 — and floating effect itself to rc.116 instead breaks alchemy
-beta.74, whose compiled code still calls the removed `Config.string` API).
+(`alchemy@2.0.0-beta.83` with stable `effect@4.0.5` and
+`@effect/platform-node@4.0.5`; `pnpm-workspace.yaml` pins
+`@effect/platform-node-shared` to the same release so Effect packages
+never drift apart).
 `pnpm-lock.yaml` is committed, so always install with
 `pnpm install --frozen-lockfile`; CI re-runs frozen install, typecheck,
 and `alchemy --help` to catch version drift. Core application code never
@@ -17,7 +14,8 @@ imports Alchemy.
 ## What it provisions
 
 - One private R2 bucket per stage: `aha-prod` for stage `prod`,
-  `aha-dev` otherwise. No custom domains, no public access.
+  `aha-dev` otherwise. No custom domains, no public access (`publicAccess:
+  false` keeps the `r2.dev` domain disabled).
 - An account-owned `${bucketName}-service` API token with only R2 Bucket Item
   Read and Write permission for that stage's bucket. Its secret is kept in
   private Alchemy state, not printed as a stack output. Credential creation
