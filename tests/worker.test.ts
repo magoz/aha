@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import { SECURITY_HEADERS } from '../lib/security-headers.js'
 import { SESSION_COOKIE } from '../lib/sessions.js'
-import { handleWorkerRequest } from '../server/worker.js'
-import type { WorkerEnv } from '../server/worker.js'
+import { handleWorkerRequest } from '../server/worker-handler.js'
+import type { WorkerEnv } from '../server/worker-handler.js'
 import { countingLengthGuard, createFakeR2Bucket } from './fake-r2-bucket.js'
 import type { FakeR2Bucket } from './fake-r2-bucket.js'
 import { TEST_OWNER_TOKEN } from './helpers.js'
@@ -214,6 +214,16 @@ describe('worker', () => {
 
     expect((await call(env, 'POST', '/pair/not-a-real-code')).status).toBe(410)
     expect((await call(env, 'POST', '/api/pair')).status).toBe(401)
+  })
+
+  it('pairs only one browser when a link is used twice at once', async () => {
+    const env = envFor(createFakeR2Bucket())
+    const created = await call(env, 'POST', '/api/pair', owner)
+    const path = new URL((await decode(created, UrlPayload)).url).pathname
+    const results = await Promise.all([call(env, 'POST', path), call(env, 'POST', path)])
+
+    expect(results.map((result) => result.status).sort()).toEqual([200, 410])
+    expect(results.filter((result) => result.headers.get('set-cookie') !== null).length).toBe(1)
   })
 
   it('fails closed on storage outages and missing config', async () => {

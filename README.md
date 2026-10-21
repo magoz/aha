@@ -82,8 +82,8 @@ The default run serves the file on loopback with the production security headers
 
 - All documents are private by default. Publication requires an explicit `publish` (creates empty `public/<id>`). `unpublish` deletes the marker. `update` preserves visibility.
 - The owner bearer token permits mutations, listing, publishing and pairing. A paired browser (cookie from `aha pair`) may only `GET`/`HEAD` pages at `/<id>`, public or private. Public anonymous reads require a present marker.
-- Pairing: `aha pair` creates a one-time code valid for 10 minutes. `GET /pair/<code>` only shows a button (link previews cannot use it up); the `POST` uses up the code and sets `__Host-aha-session` (`Secure`, `HttpOnly`, `SameSite=Lax`, host-only, renewed on each private view up to the 400-day browser cap). R2 stores only the SHA-256 of codes and session tokens. `aha devices` lists paired browsers and `aha unpair` revokes one or all.
-- Marker-check errors fail closed with 502/503, never 404 and never public content.
+- Pairing: `aha pair` creates a one-time code valid for 10 minutes. `GET /pair/<code>` only shows a button (link previews cannot use it up); the `POST` uses up the code and sets `__Host-aha-session` (`Secure`, `HttpOnly`, `SameSite=Lax`, host-only, renewed on every view by that browser up to the 400-day browser cap; no server-side expiry). The Worker has no `workers.dev` or preview URLs. R2 stores only the SHA-256 of codes and session tokens. `aha devices` lists paired browsers and `aha unpair` revokes one or all.
+- Marker and session check errors fail closed with 502, never 404 and never content.
 - Never trust `Host`, `X-Forwarded-*`, client IPs or DNS for access. Private access is decided only by the owner bearer or a paired-browser session that exists in storage, or by the marker for anonymous reads.
 - Invalid IDs and path traversal never become storage keys; only `[A-Za-z0-9_-]{1,80}` IDs are accepted.
 - No raw object routes. `/` and `/api/health` disclose no IDs. No secrets in logs or errors.

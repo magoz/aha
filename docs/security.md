@@ -3,7 +3,9 @@
 - Private by default. `aha/<id>.html` holds content; an empty
   `public/<id>` object marks a document public. Missing marker means private.
   The bucket has no public access, no `r2.dev` domain and no custom domain;
-  only the Worker reads it, through its binding.
+  only the Worker reads it, through its binding. The Worker answers only on
+  its custom domain (`workersDev: false`: no `workers.dev` or per-version
+  preview URLs that could keep old code or secrets reachable).
 - Anonymous `GET`/`HEAD /<id>` succeed only when the marker is present.
   Marker reads happen before content reads; any storage error denies
   (HTTP 502 for page reads, never content, never a bare 404 that would be
@@ -18,12 +20,15 @@
   - `GET /pair/<code>` only shows a button, so chat-app link previews cannot
     use the code. `POST` uses it up, even when expired, and sets a random
     32-byte session token as `__Host-aha-session` (`Secure`, `HttpOnly`,
-    `SameSite=Lax`, `Path=/`, no `Domain`). Concurrent `POST`s of one code
-    are not transactional; both could pair within the same moment.
+    `SameSite=Lax`, `Path=/`, no `Domain`). The code is claimed with a
+    conditional write before it is deleted, so two concurrent `POST`s pair at
+    most one browser.
   - R2 stores only SHA-256 hashes (`pairing/<hash>`, `session/<hash>`), so a
-    leaked listing cannot be replayed as a code or cookie. Each private view
-    looks the session up (fail closed) and renews the cookie, up to the
-    400-day browser cap.
+    leaked listing cannot be replayed as a code or cookie. Every page view by
+    a paired browser looks the session up (fail closed) and renews the
+    cookie, up to the 400-day browser cap. Sessions have no server-side
+    expiry by design (pair once); revoke lost or old browsers with
+    `aha unpair`.
   - `aha devices` lists sessions (label from the User-Agent, for display
     only); `aha unpair <id>` / `--all` revokes them immediately.
   - `SameSite=Lax` sends the cookie on top-level navigations from other

@@ -1,8 +1,8 @@
 import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 
-import { handleWorkerRequest } from '../server/worker.js'
-import type { WorkerEnv } from '../server/worker.js'
+import { handleWorkerRequest } from '../server/worker-handler.js'
+import type { WorkerEnv } from '../server/worker-handler.js'
 import { countingLengthGuard } from './fake-r2-bucket.js'
 
 async function readAll(incoming: IncomingMessage): Promise<Buffer<ArrayBuffer>> {

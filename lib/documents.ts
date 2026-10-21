@@ -31,13 +31,11 @@ export interface ReaderCredentials {
   readonly sessionToken: string | null
 }
 
-// How a read was allowed. `paired-browser` reads renew the session cookie.
-export type ReadGrant = 'owner' | 'paired-browser' | 'public'
-
-export interface ReadAccess {
-  readonly id: PlanId
-  readonly grant: ReadGrant
-}
+// How a read was allowed. A paired-browser grant carries its token so the cookie can be renewed.
+export type ReadAccess =
+  | { readonly grant: 'owner'; readonly id: PlanId }
+  | { readonly grant: 'paired-browser'; readonly id: PlanId; readonly sessionToken: string }
+  | { readonly grant: 'public'; readonly id: PlanId }
 
 function checkUpload(
   upload: DocumentUpload | null,
@@ -162,8 +160,10 @@ export function authorizeRead(
       return { id, grant: 'owner' as const }
     }
 
-    if (yield* isPairedBrowser(credentials.sessionToken)) {
-      return { id, grant: 'paired-browser' as const }
+    const sessionToken = credentials.sessionToken
+
+    if (sessionToken !== null && (yield* isPairedBrowser(sessionToken))) {
+      return { id, grant: 'paired-browser' as const, sessionToken }
     }
 
     const storage = yield* AhaStorageTag

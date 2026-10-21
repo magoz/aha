@@ -5,6 +5,17 @@ import { renderUnicodeCompact } from 'uqr'
 import type { HeaderMap } from '../lib/headers.js'
 import { MAX_HTML_BYTES } from '../lib/html-limits.js'
 import { PlanIdSchema } from '../lib/plan-id.js'
+import { SessionIdSchema } from '../lib/sessions.js'
+import { deriveDocumentName } from './document-name.js'
+import type {
+  BuildRequest,
+  CliRequest,
+  ComponentsRequest,
+  DevicesRequest,
+  PairRequest,
+  UnpairRequest
+} from './parser.js'
+import { CliUsageError } from './parser.js'
 
 const ListItemSchema = Schema.Struct({
   id: PlanIdSchema,
@@ -17,7 +28,7 @@ const ListResponseSchema = Schema.Array(ListItemSchema)
 const PairingResponseSchema = Schema.Struct({ url: Schema.String, expiresAt: Schema.String })
 
 const SessionSchema = Schema.Struct({
-  id: Schema.String,
+  id: SessionIdSchema,
   label: Schema.String,
   createdAt: Schema.String
 })
@@ -25,17 +36,6 @@ const SessionSchema = Schema.Struct({
 const SessionsResponseSchema = Schema.Array(SessionSchema)
 
 type Session = Schema.Schema.Type<typeof SessionSchema>
-
-import { deriveDocumentName } from './document-name.js'
-import type {
-  BuildRequest,
-  CliRequest,
-  ComponentsRequest,
-  DevicesRequest,
-  PairRequest,
-  UnpairRequest
-} from './parser.js'
-import { CliUsageError } from './parser.js'
 
 export class CliRequestError extends Schema.TaggedError<CliRequestError>()('CliRequestError', {
   message: Schema.String
@@ -92,9 +92,9 @@ function send(url: string, init: RequestInit): Effect.Effect<Response, CliReques
   })
 }
 
-function decodeJson<A>(
+function decodeJson<A, I>(
   response: Response,
-  schema: Schema.Codec<A>
+  schema: Schema.Codec<A, I>
 ): Effect.Effect<A, CliRequestError> {
   return Effect.tryPromise({
     try: () => response.json(),

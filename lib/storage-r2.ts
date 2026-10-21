@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 
 import {
   DocumentExists,
@@ -70,6 +70,14 @@ const MARKER_PREFIX = 'public/'
 const SESSION_PREFIX = 'session/'
 
 const PAIRING_PREFIX = 'pairing/'
+
+const PairingMetadata = Schema.Struct({ expiresAt: Schema.FiniteFromString })
+
+const SessionMetadata = Schema.Struct({ label: Schema.String, createdAt: Schema.String })
+
+const decodePairing = Schema.decodeUnknownEffect(PairingMetadata)
+
+const decodeSession = Schema.decodeUnknownEffect(SessionMetadata)
 
 function sessionKey(id: SessionId): string {
   return `${SESSION_PREFIX}${id}`
@@ -218,17 +226,33 @@ export function makeR2SessionStore(bucket: R2BucketLike): SessionStore {
       ).pipe(Effect.asVoid),
     takePairing: (codeHash) =>
       Effect.gen(function* () {
-        const object = yield* call('takePairing', () => bucket.head(pairingKey(codeHash)))
+        const key = pairingKey(codeHash)
+        const object = yield* call('takePairing', () => bucket.head(key))
 
         if (object === null) {
           return null
         }
 
-        yield* call('takePairing', () => bucket.delete(pairingKey(codeHash)))
+        // Claim the code with a conditional write before deleting it, so two concurrent POSTs of
+        // one code cannot both pair: only the first rewrite of this ETag succeeds.
+        const conditions = new Headers({ 'if-match': object.httpEtag })
 
-        const expiresAt = Number(object.customMetadata?.['expiresAt'])
+        const claimed = yield* call('takePairing', () =>
+          bucket.put(key, '', { onlyIf: conditions, customMetadata: { claimed: 'true' } })
+        )
 
-        return Number.isFinite(expiresAt) ? expiresAt : null
+        if (claimed === null) {
+          return null
+        }
+
+        yield* call('takePairing', () => bucket.delete(key))
+
+        const metadata = yield* decodePairing(object.customMetadata).pipe(Effect.option)
+
+        return Option.match(metadata, {
+          onNone: () => null,
+          onSome: (decoded) => decoded.expiresAt
+        })
       }),
     putSession: (session) =>
       call('putSession', () =>
@@ -241,25 +265,25 @@ export function makeR2SessionStore(bucket: R2BucketLike): SessionStore {
         Effect.map((object) => object !== null)
       ),
     listSessions: () =>
-      listAll(bucket, SESSION_PREFIX, true).pipe(
-        Effect.map((objects) => {
-          const sessions: Array<BrowserSession> = []
+      Effect.gen(function* () {
+        const objects = yield* listAll(bucket, SESSION_PREFIX, true)
+        const sessions: Array<BrowserSession> = []
 
-          for (const object of objects) {
-            const id = object.key.slice(SESSION_PREFIX.length)
+        for (const object of objects) {
+          const id = object.key.slice(SESSION_PREFIX.length)
 
-            if (isSessionId(id)) {
-              sessions.push({
-                id,
-                label: object.customMetadata?.['label'] ?? 'Browser',
-                createdAt: object.customMetadata?.['createdAt'] ?? ''
-              })
-            }
+          // Sessions with unreadable metadata are still listed, so `unpair --all` revokes them too.
+          const metadata = yield* decodeSession(object.customMetadata).pipe(
+            Effect.orElseSucceed(() => ({ label: 'Unknown browser', createdAt: 'unknown' }))
+          )
+
+          if (isSessionId(id)) {
+            sessions.push({ id, ...metadata })
           }
+        }
 
-          return sessions
-        })
-      ),
+        return sessions
+      }),
     deleteSession: (id) =>
       Effect.gen(function* () {
         if ((yield* call('deleteSession', () => bucket.head(sessionKey(id)))) === null) {

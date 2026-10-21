@@ -91,13 +91,11 @@ function sha256Hex(value: string): Effect.Effect<string> {
   )
 }
 
-function sessionIdFor(token: string): Effect.Effect<SessionId, StorageUnavailable> {
+// A SHA-256 hex digest always matches the session id pattern; a mismatch is a defect.
+function sessionIdFor(token: string): Effect.Effect<SessionId> {
   return sha256Hex(token).pipe(
-    Effect.flatMap((hex) =>
-      isSessionId(hex)
-        ? Effect.succeed(hex)
-        : Effect.fail(new StorageUnavailable({ operation: 'sessionIdFor' }))
-    )
+    Effect.flatMap((hex) => Schema.decodeUnknownEffect(SessionIdSchema)(hex)),
+    Effect.orDie
   )
 }
 
@@ -222,10 +220,10 @@ export function completePairing(
 }
 
 export function isPairedBrowser(
-  token: string | null
+  token: string
 ): Effect.Effect<boolean, StorageUnavailable, SessionStoreTag> {
   return Effect.gen(function* () {
-    if (token === null || !TOKEN_PATTERN.test(token)) {
+    if (!TOKEN_PATTERN.test(token)) {
       return false
     }
 

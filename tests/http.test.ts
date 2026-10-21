@@ -438,7 +438,12 @@ describe('http boundary', () => {
         { method: 'GET', url: '/api/documents' },
         { method: 'POST', url: `/api/documents/${id}/publish` },
         { method: 'POST', url: '/api/pair' },
-        { method: 'GET', url: '/api/sessions' }
+        { method: 'GET', url: '/api/sessions' },
+        { method: 'PUT', url: `/api/documents/${id}` },
+        { method: 'DELETE', url: `/api/documents/${id}` },
+        { method: 'POST', url: `/api/documents/${id}/unpublish` },
+        { method: 'DELETE', url: '/api/sessions' },
+        { method: 'DELETE', url: `/api/sessions/${'a'.repeat(64)}` }
       ]) {
         const denied = yield* handleAhaRequest(
           { ...request, headers: { cookie }, body: null },
@@ -446,6 +451,26 @@ describe('http boundary', () => {
         ).pipe(Effect.provide(ctx.layer))
 
         expect(denied.status).toBe(401)
+      }
+
+      expect(ctx.state.documents.size).toBe(1)
+      expect(ctx.state.sessions.size).toBe(1)
+
+      const pairedHead = yield* handleAhaRequest(
+        { method: 'HEAD', url: `/${id}`, headers: { cookie }, body: null },
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(pairedHead.status).toBe(200)
+      expect(pairedHead.body).toBe(null)
+
+      for (const path of ['/api/sessions/not-hex', `/api/sessions/${'A'.repeat(64)}`]) {
+        const malformed = yield* handleAhaRequest(
+          { method: 'DELETE', url: path, headers: { authorization: ownerAuth() }, body: null },
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+
+        expect(malformed.status).toBe(404)
       }
 
       const anonymousApi = yield* handleAhaRequest(

@@ -1,6 +1,6 @@
 # aha infrastructure (Alchemy)
 
-Operator-run Cloudflare R2 provisioning. This package is intentionally
+Operator-run Cloudflare provisioning (R2 bucket and Worker). This package is intentionally
 separate from the application: it has its own dependencies
 (`alchemy@2.0.0-beta.83` with stable `effect@4.0.5` and
 `@effect/platform-node@4.0.5`; `pnpm-workspace.yaml` pins
@@ -14,15 +14,16 @@ imports Alchemy.
 ## What it provisions
 
 - One private R2 bucket per stage: `aha-prod` for stage `prod`,
-  `aha-dev` otherwise. No custom domains, no public access (`publicAccess:
-  false` keeps the `r2.dev` domain disabled).
+  `aha-dev` otherwise. The bucket has no custom domain and no public access
+  (`publicAccess: false` keeps the `r2.dev` domain disabled).
 - One Worker per stage (`aha-prod` on `aha.o-o.co`, `aha-dev` on
   `aha-dev.o-o.co`) built from `../server/worker.ts`, with the bucket bound as
   `AHA_BUCKET`, `AHA_PUBLIC_URL`, and the secret `AHA_OWNER_TOKEN` read from
   the deploying shell (`AHA_OWNER_TOKEN=... pnpm exec alchemy deploy ...` or
   `--env-file`). Cloudflare creates the custom domain's DNS record and
-  certificate; the `o-o.co` zone must be in the same account.
-- Legacy, until `aha.oox.sh` only redirects: an account-owned
+  certificate; the `o-o.co` zone must be in the same account. `workersDev:
+  false` disables the `workers.dev` and per-version preview URLs.
+- Legacy, prod only, until `aha.oox.sh` only redirects: an account-owned
   `${bucketName}-service` API token with only R2 Bucket Item Read and Write
   permission for that stage's bucket, used by the retired Vercel deployment. Its secret is kept in
   private Alchemy state, not printed as a stack output. Credential creation

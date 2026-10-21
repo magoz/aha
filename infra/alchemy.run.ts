@@ -42,12 +42,19 @@ export default Alchemy.Stack(
       main: '../server/worker.ts',
       compatibility: { date: '2026-10-01' },
       domain: names.hostname,
+      // Only the custom domain serves Aha: no workers.dev URL and no per-version preview URLs, which
+      // would keep old code and secrets reachable after a fix or token rotation.
+      workersDev: false,
       env: {
         AHA_BUCKET: bucket,
         AHA_OWNER_TOKEN: Config.Redacted('AHA_OWNER_TOKEN'),
         AHA_PUBLIC_URL: `https://${names.hostname}`
       }
     })
+
+    if (stack.stage !== 'prod') {
+      return { bucketName: bucket.bucketName, url: worker.url }
+    }
 
     // Legacy S3-API credential used only by the retired Vercel deployment. Remove this resource
     // once aha.oox.sh redirects to the Worker.

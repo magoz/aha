@@ -384,8 +384,8 @@ function handlePage(
   return authorizeRead(id, credentials, config).pipe(
     Effect.flatMap((access) => {
       const renew: HeaderMap =
-        access.grant === 'paired-browser' && credentials.sessionToken !== null
-          ? { 'set-cookie': sessionCookie(credentials.sessionToken) }
+        access.grant === 'paired-browser'
+          ? { 'set-cookie': sessionCookie(access.sessionToken) }
           : {}
 
       return streamDocument(
