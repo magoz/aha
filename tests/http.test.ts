@@ -4,14 +4,10 @@ import { Effect, Schema } from 'effect'
 import type { HeaderMap } from '../lib/headers.js'
 import { handleAhaRequest } from '../lib/http.js'
 import type { AhaRequest } from '../lib/http.js'
-import {
-  TEST_CONFIG,
-  bytesToString,
-  htmlBytes,
-  makeTestContext,
-  ownerAuth,
-  privateAuth
-} from './helpers.js'
+import { SESSION_COOKIE } from '../lib/sessions.js'
+import { streamOf } from './fake-storage.js'
+import { TEST_CONFIG, htmlBytes, makeTestContext, ownerAuth, responseText } from './helpers.js'
+import type { TestContext } from './helpers.js'
 
 const SAMPLE = '<!doctype html><html><body><p>synthetic http</p></body></html>'
 
@@ -23,6 +19,42 @@ function get(url: string, authorization: string | null): AhaRequest {
   }
 
   return { method: 'GET', url, headers, body: null }
+}
+
+function withBody(method: string, url: string, headers: HeaderMap, bytes: Uint8Array): AhaRequest {
+  return {
+    method,
+    url,
+    headers: { ...headers, 'content-length': String(bytes.length) },
+    body: streamOf(bytes)
+  }
+}
+
+// Pairs a browser through the HTTP routes and returns its cookie header.
+function pairBrowser(ctx: TestContext): Effect.Effect<string> {
+  return Effect.gen(function* () {
+    const created = yield* handleAhaRequest(
+      { method: 'POST', url: '/api/pair', headers: { authorization: ownerAuth() }, body: null },
+      TEST_CONFIG
+    ).pipe(Effect.provide(ctx.layer))
+
+    const pairing = yield* Schema.decodeUnknownEffect(PairingPayload)(
+      JSON.parse(yield* responseText(created))
+    ).pipe(Effect.orDie)
+
+    const path = new URL(pairing.url).pathname
+
+    const paired = yield* handleAhaRequest(
+      { method: 'POST', url: path, headers: { 'user-agent': 'Safari/605 Mac OS X' }, body: null },
+      TEST_CONFIG
+    ).pipe(Effect.provide(ctx.layer))
+
+    const cookie = (paired.headers['set-cookie'] ?? '').split(';')[0] ?? ''
+
+    expect(cookie.startsWith(`${SESSION_COOKIE}=`)).toBe(true)
+
+    return cookie
+  })
 }
 
 function postDocument(
@@ -38,10 +70,12 @@ function postDocument(
 
   const url = name === null ? '/api/documents' : `/api/documents?name=${name}`
 
-  return { method: 'POST', url, headers, body }
+  return withBody('POST', url, headers, body)
 }
 
 const CreatedPayload = Schema.Struct({ id: Schema.String, url: Schema.String })
+
+const PairingPayload = Schema.Struct({ url: Schema.String, expiresAt: Schema.String })
 
 function createdId(payload: string): Effect.Effect<string, never> {
   return Schema.decodeUnknownEffect(CreatedPayload)(JSON.parse(payload)).pipe(
@@ -55,14 +89,6 @@ function createdUrl(payload: string): Effect.Effect<string, never> {
     Effect.map((decoded) => decoded.url),
     Effect.orElseSucceed(() => '')
   )
-}
-
-function responseText(response: { body: Uint8Array | null }): string {
-  if (response.body === null) {
-    return ''
-  }
-
-  return bytesToString(response.body)
 }
 
 describe('http boundary', () => {
@@ -80,8 +106,8 @@ describe('http boundary', () => {
 
       expect(root.status).toBe(200)
       expect(health.status).toBe(200)
-      expect(responseText(root).includes('aha')).toBe(true)
-      expect(responseText(health).includes('true')).toBe(true)
+      expect((yield* responseText(root)).includes('aha')).toBe(true)
+      expect((yield* responseText(health)).includes('true')).toBe(true)
       expect(root.headers['cache-control']).toBe('no-store')
       expect(health.headers['x-content-type-options']).toBe('nosniff')
       expect(health.headers['content-security-policy']?.includes('sandbox')).toBe(true)
@@ -99,10 +125,10 @@ describe('http boundary', () => {
 
       expect(created.status).toBe(201)
 
-      const id = yield* createdId(responseText(created))
-      const shareUrl = yield* createdUrl(responseText(created))
+      const id = yield* createdId(yield* responseText(created))
+      const shareUrl = yield* createdUrl(yield* responseText(created))
 
-      expect(shareUrl).toBe(`https://aha.oox.sh/${id}`)
+      expect(shareUrl).toBe(`https://aha.o-o.co/${id}`)
 
       const before = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
         Effect.provide(ctx.layer)
@@ -144,13 +170,7 @@ describe('http boundary', () => {
       expect(after.headers['cache-control']).toBe('no-store')
       expect(after.headers['referrer-policy']).toBe('no-referrer')
 
-      const afterBody = after.body
-
-      expect(afterBody === null).toBe(false)
-
-      if (afterBody !== null) {
-        expect(bytesToString(afterBody)).toBe(SAMPLE)
-      }
+      expect(yield* responseText(after)).toBe(SAMPLE)
 
       const unpublish = yield* handleAhaRequest(
         {
@@ -181,7 +201,7 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const id = yield* createdId(responseText(created))
+      const id = yield* createdId(yield* responseText(created))
 
       ctx.state.failAll = true
 
@@ -202,7 +222,7 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const id = yield* createdId(responseText(created))
+      const id = yield* createdId(yield* responseText(created))
 
       yield* handleAhaRequest(
         {
@@ -238,13 +258,7 @@ describe('http boundary', () => {
 
       expect(ranged.status).toBe(200)
 
-      const rangedBody = ranged.body
-
-      expect(rangedBody === null).toBe(false)
-
-      if (rangedBody !== null) {
-        expect(bytesToString(rangedBody)).toBe(SAMPLE)
-      }
+      expect(yield* responseText(ranged)).toBe(SAMPLE)
 
       yield* handleAhaRequest(
         {
@@ -273,14 +287,14 @@ describe('http boundary', () => {
 
           expect(denied.status).toBe(url.startsWith('/api/') ? 401 : 404)
           expect(denied.headers['cache-control']).toBe('no-store')
-          expect(responseText(denied)).not.toContain(SAMPLE)
+          expect(yield* responseText(denied)).not.toContain(SAMPLE)
         }
 
-        const privateRead = yield* handleAhaRequest(get(url, privateAuth()), TEST_CONFIG).pipe(
+        const ownerRead = yield* handleAhaRequest(get(url, ownerAuth()), TEST_CONFIG).pipe(
           Effect.provide(ctx.layer)
         )
 
-        expect(privateRead.status).toBe(200)
+        expect(ownerRead.status).toBe(200)
       }
     })
   )
@@ -316,7 +330,7 @@ describe('http boundary', () => {
       )
 
       expect(hostStyle.status).toBe(200)
-      expect(responseText(hostStyle)).toBe('aha')
+      expect(yield* responseText(hostStyle)).toBe('aha')
     })
   )
 
@@ -332,7 +346,7 @@ describe('http boundary', () => {
           'content-type': 'text/html',
           'content-length': '99999999'
         },
-        body: htmlBytes(SAMPLE)
+        body: streamOf(htmlBytes(SAMPLE))
       }
 
       const rejected = yield* handleAhaRequest(lying, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
@@ -343,8 +357,12 @@ describe('http boundary', () => {
         {
           method: 'POST',
           url: '/api/documents',
-          headers: { authorization: ownerAuth(), 'content-type': 'application/json' },
-          body: htmlBytes('{}')
+          headers: {
+            authorization: ownerAuth(),
+            'content-type': 'application/json',
+            'content-length': '2'
+          },
+          body: streamOf(htmlBytes('{}'))
         },
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -354,8 +372,8 @@ describe('http boundary', () => {
       const missing: AhaRequest = {
         method: 'POST',
         url: '/api/documents',
-        headers: { 'content-type': 'text/html' },
-        body: htmlBytes(SAMPLE)
+        headers: { 'content-type': 'text/html', 'content-length': String(SAMPLE.length) },
+        body: streamOf(htmlBytes(SAMPLE))
       }
 
       const anonymous = yield* handleAhaRequest(missing, TEST_CONFIG).pipe(
@@ -363,10 +381,23 @@ describe('http boundary', () => {
       )
 
       expect(anonymous.status).toBe(401)
+
+      const unsized = yield* handleAhaRequest(
+        {
+          method: 'POST',
+          url: '/api/documents?name=no-length',
+          headers: { authorization: ownerAuth(), 'content-type': 'text/html' },
+          body: streamOf(htmlBytes(SAMPLE))
+        },
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(unsized.status).toBe(411)
+      expect(ctx.state.documents.size).toBe(0)
     })
   )
 
-  it.effect('separates owner, private-read and public capabilities', () =>
+  it.effect('separates owner, paired browser and public capabilities', () =>
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
@@ -375,14 +406,47 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const id = yield* createdId(responseText(created))
+      const id = yield* createdId(yield* responseText(created))
+      const cookie = yield* pairBrowser(ctx)
 
-      const privateRead = yield* handleAhaRequest(
-        get(`/api/documents/${id}`, privateAuth()),
+      const paired = yield* handleAhaRequest(
+        { method: 'GET', url: `/${id}`, headers: { cookie }, body: null },
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      expect(privateRead.status).toBe(200)
+      expect(paired.status).toBe(200)
+      expect(yield* responseText(paired)).toBe(SAMPLE)
+      expect(paired.headers['set-cookie']?.startsWith(cookie)).toBe(true)
+      expect(paired.headers['cache-control']).toBe('no-store')
+
+      const forged = yield* handleAhaRequest(
+        {
+          method: 'GET',
+          url: `/${id}`,
+          headers: { cookie: `${SESSION_COOKIE}=${'x'.repeat(43)}` },
+          body: null
+        },
+        TEST_CONFIG
+      ).pipe(Effect.provide(ctx.layer))
+
+      expect(forged.status).toBe(404)
+      expect(forged.headers['set-cookie']).toBe(undefined)
+
+      // The cookie only opens pages: never the API, listing or publishing.
+      for (const request of [
+        { method: 'GET', url: `/api/documents/${id}` },
+        { method: 'GET', url: '/api/documents' },
+        { method: 'POST', url: `/api/documents/${id}/publish` },
+        { method: 'POST', url: '/api/pair' },
+        { method: 'GET', url: '/api/sessions' }
+      ]) {
+        const denied = yield* handleAhaRequest(
+          { ...request, headers: { cookie }, body: null },
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
+
+        expect(denied.status).toBe(401)
+      }
 
       const anonymousApi = yield* handleAhaRequest(
         get(`/api/documents/${id}`, null),
@@ -390,12 +454,6 @@ describe('http boundary', () => {
       ).pipe(Effect.provide(ctx.layer))
 
       expect(anonymousApi.status).toBe(401)
-
-      const list = yield* handleAhaRequest(get('/api/documents', privateAuth()), TEST_CONFIG).pipe(
-        Effect.provide(ctx.layer)
-      )
-
-      expect(list.status).toBe(401)
 
       const ownerList = yield* handleAhaRequest(
         get('/api/documents', ownerAuth()),
@@ -415,7 +473,7 @@ describe('http boundary', () => {
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const id = yield* createdId(responseText(created))
+      const id = yield* createdId(yield* responseText(created))
       const revised = '<!doctype html><html><body><p>v2</p></body></html>'
 
       yield* handleAhaRequest(
@@ -432,8 +490,12 @@ describe('http boundary', () => {
         {
           method: 'PUT',
           url: `/api/documents/${id}`,
-          headers: { authorization: ownerAuth(), 'content-type': 'text/html' },
-          body: htmlBytes(revised)
+          headers: {
+            authorization: ownerAuth(),
+            'content-type': 'text/html',
+            'content-length': String(htmlBytes(revised).length)
+          },
+          body: streamOf(htmlBytes(revised))
         },
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
@@ -473,8 +535,10 @@ describe('http boundary', () => {
       ).pipe(Effect.provide(ctx.layer))
 
       expect(created.status).toBe(201)
-      expect(yield* createdId(responseText(created))).toBe('q3-launch-plan')
-      expect(yield* createdUrl(responseText(created))).toBe('https://aha.oox.sh/q3-launch-plan')
+      expect(yield* createdId(yield* responseText(created))).toBe('q3-launch-plan')
+      expect(yield* createdUrl(yield* responseText(created))).toBe(
+        'https://aha.o-o.co/q3-launch-plan'
+      )
 
       for (const id of ['q3-launch-plan', legacy]) {
         const privateBefore = yield* handleAhaRequest(get(`/${id}`, null), TEST_CONFIG).pipe(
@@ -500,7 +564,7 @@ describe('http boundary', () => {
         )
 
         expect(open.status).toBe(200)
-        expect(responseText(open)).toBe(SAMPLE)
+        expect(yield* responseText(open)).toBe(SAMPLE)
 
         const ownerRead = yield* handleAhaRequest(
           get(`/api/documents/${id}`, ownerAuth()),
@@ -529,14 +593,14 @@ describe('http boundary', () => {
       ).pipe(Effect.provide(ctx.layer))
 
       expect(clash.status).toBe(409)
-      expect(responseText(clash)).toBe(JSON.stringify({ error: 'name-taken' }))
+      expect(yield* responseText(clash)).toBe(JSON.stringify({ error: 'name-taken' }))
 
       const read = yield* handleAhaRequest(
         get('/api/documents/taken-name', ownerAuth()),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      expect(responseText(read)).toBe(SAMPLE)
+      expect(yield* responseText(read)).toBe(SAMPLE)
     })
   )
 
@@ -552,7 +616,7 @@ describe('http boundary', () => {
         ).pipe(Effect.provide(ctx.layer))
 
         expect(response.status).toBe(400)
-        expect(responseText(response)).toBe(JSON.stringify({ error: 'invalid-name' }))
+        expect(yield* responseText(response)).toBe(JSON.stringify({ error: 'invalid-name' }))
       }
 
       expect(ctx.state.documents.size).toBe(0)

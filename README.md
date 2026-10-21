@@ -2,7 +2,7 @@
 
 Personal HTML publishing for agents. Private by default; publish and unpublish with R2 marker objects.
 
-Production hostname: `https://aha.oox.sh`.
+Production hostname: `https://aha.o-o.co` (a Cloudflare Worker). `https://aha.oox.sh/*` permanently redirects there.
 
 ## Setup
 
@@ -10,7 +10,6 @@ Requires Node 24 and pnpm 10.
 
 ```sh
 pnpm install --frozen-lockfile
-cp .env.example .env  # fill in values, never commit .env
 pnpm verify
 ```
 
@@ -19,13 +18,14 @@ pnpm verify
 ## Architecture
 
 - Plain TypeScript + Effect 4. No Next.js or React.
-- Vercel serves public HTTP from `api/`. A small Node server (`server/`) supports local development and smoke tests. A separate loopback-only private gateway (`gateway/`) exposes tailnet-local reads.
-- Private Cloudflare R2 bucket stores documents and publication markers:
-  - `aha/<id>.html` holds the current HTML document.
-  - Empty `public/<id>` object means public. Missing marker means private.
+- One Cloudflare Worker (`server/worker.ts`) serves all HTTP and reads a private R2 bucket through its binding. Documents stream end to end, so no page sits in memory. Alchemy (`infra/`) provisions the bucket and the Worker.
+- The private R2 bucket stores:
+  - `aha/<id>.html`: the current HTML document.
+  - `public/<id>`: an empty marker; present means public, missing means private.
+  - `session/<sha256>` and `pairing/<sha256>`: paired browsers and one-time pairing codes, stored only as hashes.
 - Every anonymous `GET`/`HEAD` checks the marker first. Storage failures fail closed (deny, never treat as missing or public). HTML and access decisions are never cached.
 - Readable IDs: the owner picks a name at upload (`POST /api/documents?name=<name>`, lowercase letters, digits and single dashes, up to 80 characters, `api` reserved). Uploads never overwrite: a taken name returns 409 (enforced by a conditional `If-None-Match: *` write). Older random 22-character IDs keep working. Updates replace content in place and preserve visibility. No version history in v1.
-- `lib/` holds the Effect core (`AhaStorage` Context service, domain Effects, HTTP boundary). Runtime adapters run Effects only at entrypoints (`api/`, `server/`, `gateway/`, `cli/`, `infra/`). Tests use a typed in-memory fake (`tests/fake-storage.ts`); no module mocks.
+- `lib/` holds the Effect core (`AhaStorage` and `SessionStore` Context services, domain Effects, HTTP boundary, R2 binding storage). Runtime adapters run Effects only at entrypoints (`server/worker.ts`, `cli/`). Tests use typed in-memory fakes (`tests/fake-storage.ts`, `tests/fake-r2-bucket.ts`); no module mocks.
 
 ## CLI
 
@@ -37,6 +37,9 @@ pnpm aha unpublish <id>
 pnpm aha list [--public] [--json]
 pnpm aha read <id> [--output out.html]
 pnpm aha delete <id>   # only when unpublished, otherwise 409
+pnpm aha pair          # one-time link + QR code to let a browser open private pages
+pnpm aha devices [--json]
+pnpm aha unpair <id-prefix> | --all
 ```
 
 `pnpm build` produces `dist/cli/aha.js`; it does not install a global command.
@@ -55,12 +58,12 @@ publication or global npm install. After updating the checkout, run
 
 Configuration:
 
-- `--endpoint <url>` or `AHA_ENDPOINT` (default `https://aha.oox.sh`). Only `https:` endpoints are allowed, except loopback `http:` (`127.0.0.1`, `::1`, `localhost`) for development. Under split DNS the same browser URL routes to the read-only private gateway, which rejects `/api/*`; point the CLI at the public deployment alias instead (e.g. `AHA_ENDPOINT=https://<public-alias>`) and never proxy owner writes through the gateway.
-- `--public-url <url>` or `AHA_PUBLIC_URL` (default `https://aha.oox.sh`). Canonical base for share URLs printed by `upload`/`publish`, independent of `--endpoint`, so split-DNS operators still hand out `https://aha.oox.sh/<id>` links.
+- `--endpoint <url>` or `AHA_ENDPOINT` (default `https://aha.o-o.co`). Only `https:` endpoints are allowed, except loopback `http:` (`127.0.0.1`, `::1`, `localhost`) for development (e.g. `https://aha-dev.o-o.co` or a local `pnpm dev`).
+- `--public-url <url>` or `AHA_PUBLIC_URL` (default `https://aha.o-o.co`). Canonical base for share URLs printed by `upload`/`publish`, independent of `--endpoint`.
 - `--token <token>` or `AHA_OWNER_TOKEN`. Tokens may also live in `~/.config/aha/credentials` (`0600`) or `$AHA_CREDENTIALS_FILE`; the CLI never logs tokens.
-- `read` uses the owner token against `/api/documents/<id>`; public reads use `https://aha.oox.sh/<id>` without credentials.
+- `read` uses the owner token against `/api/documents/<id>`; public reads use `https://aha.o-o.co/<id>` without credentials.
 
-Uploads are bounded to 2 MiB with real byte accounting; non-`text/html` content types are rejected. Updates never create unknown IDs and never change markers. Updates accept an optional `If-Match` ETag; mismatches return 412. Without `If-Match`, latest-write wins (documented here).
+Uploads are bounded to 95 MiB (`MAX_HTML_BYTES`; Workers accept 100 MB request bodies on Free and Pro zones). The CLI refuses larger files before sending; the Worker requires `Content-Length` (411 without it), rejects larger declarations (413) and streams the body into R2 through a fixed-length stream, so a body that differs from its declared size is never stored. Non-`text/html` content types are rejected. Updates never create unknown IDs and never change markers. Updates accept an optional `If-Match` ETag; mismatches return 412. Without `If-Match`, latest-write wins (documented here).
 
 ## Preview
 
@@ -78,68 +81,34 @@ The default run serves the file on loopback with the production security headers
 ## Security and public marker contract
 
 - All documents are private by default. Publication requires an explicit `publish` (creates empty `public/<id>`). `unpublish` deletes the marker. `update` preserves visibility.
-- Owner bearer token permits mutations and listing. A separate private-read bearer permits only `GET`/`HEAD` of document content. Public anonymous reads require a present marker.
+- The owner bearer token permits mutations, listing, publishing and pairing. A paired browser (cookie from `aha pair`) may only `GET`/`HEAD` pages at `/<id>`, public or private. Public anonymous reads require a present marker.
+- Pairing: `aha pair` creates a one-time code valid for 10 minutes. `GET /pair/<code>` only shows a button (link previews cannot use it up); the `POST` uses up the code and sets `__Host-aha-session` (`Secure`, `HttpOnly`, `SameSite=Lax`, host-only, renewed on each private view up to the 400-day browser cap). R2 stores only the SHA-256 of codes and session tokens. `aha devices` lists paired browsers and `aha unpair` revokes one or all.
 - Marker-check errors fail closed with 502/503, never 404 and never public content.
-- Never trust `Host`, `X-Forwarded-*`, cookies, client-supplied credentials, or Tailscale IP for access. Private access is decided only by bearer credential (owner/private-read) at the origin, or by the marker for anonymous reads.
+- Never trust `Host`, `X-Forwarded-*`, client IPs or DNS for access. Private access is decided only by the owner bearer or a paired-browser session that exists in storage, or by the marker for anonymous reads.
 - Invalid IDs and path traversal never become storage keys; only `[A-Za-z0-9_-]{1,80}` IDs are accepted.
 - No raw object routes. `/` and `/api/health` disclose no IDs. No secrets in logs or errors.
-- Every HTML and status response carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, and a restrictive CSP: opaque-origin `sandbox allow-scripts`, inline scripts and styles allowed, inline event-handler attributes blocked, no forms, frames, network or external resources, `data:` images/fonts only (`default-src 'none'; script-src 'unsafe-inline'; script-src-attr 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox allow-scripts`).
+- Every document and status response carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, and a restrictive CSP: opaque-origin `sandbox allow-scripts`, inline scripts and styles allowed, inline event-handler attributes blocked, no forms, frames, network or external resources, `data:` images/fonts only (`default-src 'none'; script-src 'unsafe-inline'; script-src-attr 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox allow-scripts`).
 - `HEAD`, `Range`, and conditional requests (`If-None-Match`, `If-Modified-Since`, `Range`) cannot bypass access: markers are checked before any content handling, ranges are ignored (full bounded body or `416` is never used to leak existence beyond the access decision).
 
-## Deployment environment variables
+## Deployment
 
-| Variable                 | Required      | Description                                                                                                                          |
-| ------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `AHA_OWNER_TOKEN`        | yes (service) | Owner bearer credential for mutations and listing.                                                                                   |
-| `AHA_PRIVATE_READ_TOKEN` | yes (service) | Private-read bearer for document `GET`/`HEAD` only. Distinct from owner token.                                                       |
-| `R2_ACCESS_KEY_ID`       | yes           | R2 S3 access key.                                                                                                                    |
-| `R2_SECRET_ACCESS_KEY`   | yes           | R2 S3 secret. Secret, never logged.                                                                                                  |
-| `R2_BUCKET`              | yes           | Private bucket name (`aha-prod` / `aha-dev`).                                                                                        |
-| `R2_ENDPOINT`            | yes           | S3-compatible endpoint, e.g. `https://<account>.r2.cloudflarestorage.com`.                                                           |
-| `R2_REGION`              | no            | S3 region label, default `auto`.                                                                                                     |
-| `AHA_PUBLIC_URL`         | no            | Canonical share-URL base returned by the service and CLI, default `https://aha.oox.sh`.                                              |
-| `AHA_UPSTREAM_URL`       | gateway only  | Fixed `https:` upstream origin for the private gateway (a deployment alias distinct from `aha.oox.sh` to avoid split-DNS recursion). |
-| `AHA_PRIVATE_READ_TOKEN` | gateway only  | Injected server-side by the gateway; client credentials are stripped.                                                                |
-| `PORT`                   | dev only      | Local server port (default `3939`).                                                                                                  |
-
-See `.env.example` for placeholders. Never commit real values, Alchemy state (`.alchemy/`), Vercel metadata (`.vercel/`), or real ahas.
-
-## Alchemy (R2 provisioning)
-
-Infrastructure lives under `infra/` as a separate package (own dependencies) so core never imports Alchemy. It provisions private R2 buckets with retain-on-teardown and separate prod/dev names.
+The Worker's settings come from Alchemy (`infra/alchemy.run.ts`): the R2 bucket binding `AHA_BUCKET`, the secret `AHA_OWNER_TOKEN` (read from the deploying shell) and `AHA_PUBLIC_URL`. There are no R2 API keys. Stages are separate: `prod` (`aha-prod` bucket, `aha.o-o.co`) and anything else (`aha-dev`, `aha-dev.o-o.co`).
 
 ```sh
 cd infra
-pnpm install
-pnpm run plan    # dry run, secrets redacted
-pnpm run deploy  # operator-authorized only
+pnpm install --frozen-lockfile
+AHA_OWNER_TOKEN=... pnpm exec alchemy plan --stage dev --profile <profile>
+AHA_OWNER_TOKEN=... pnpm exec alchemy deploy --stage dev --profile <profile>  # operator-authorized only
 ```
 
-No destructive default command. `forceDestroy` stays `false`; destroying a non-empty bucket fails rather than deleting data. See `infra/README.md`.
+`pnpm dev` runs the dev stage locally with `alchemy dev`. No destructive default command; `forceDestroy` stays `false` and buckets are retained. See `infra/README.md` and `docs/deployment.md`.
 
-## Tailscale split-DNS and private gateway
-
-The same browser URL `https://aha.oox.sh` resolves publicly via Vercel on public DNS and privately via the gateway on the tailnet (split DNS). Trust comes from the credential at the origin, not the hostname.
-
-Generic setup (no real machine names, IPs, or tailnet identifiers):
-
-1. Run the gateway on a tailnet node with loopback bind only:
-   ```sh
-   AHA_UPSTREAM_URL=https://aha-origin.oox.sh \
-   AHA_PRIVATE_READ_TOKEN=<private-read-token> \
-   pnpm gateway -- --port 3938
-   ```
-   The gateway binds `127.0.0.1` only, permits only `GET`/`HEAD` document paths (`/<id>`), rejects `/api/*` and proxy-style paths, strips incoming `Authorization`/`Cookie`/forwarded headers, injects the private-read credential server-side, and refuses upstream redirects instead of forwarding the credential.
-2. Put Caddy (or equivalent) on the same node as a TLS-terminating reverse proxy in front of `127.0.0.1:3938`, serving `aha.oox.sh` with tailnet-only DNS.
-3. Configure split DNS: public DNS for `aha.oox.sh` points at Vercel; tailnet DNS for `aha.oox.sh` points at the Caddy node. The upstream alias must differ from `aha.oox.sh` so the gateway never recurses into split DNS.
-4. Verify: off-tailnet `curl https://aha.oox.sh/<id>` requires the marker; on-tailnet the same URL returns private content via the gateway. Forged `Host`/`X-Forwarded-For`/Tailscale-IP headers grant nothing.
-
-See `docs/` for details. No host changes are made by this repository.
+The root `vercel.json` is only the permanent redirect from the old `aha.oox.sh` deployment. Never commit real values, Alchemy state (`.alchemy/`), Vercel metadata (`.vercel/`), or real ahas.
 
 ## Agent skill
 
-`SKILL.md` contains a short agent skill: write a self-contained static HTML file, upload privately with the CLI, share the `https://aha.oox.sh/<id>` URL, publish only on explicit owner instruction. `templates/note.html` (short note) and `templates/plan.html` (long document) are the reference documents for the house style: copy the stylesheet, change the content. `fixtures/sample.html` is synthetic, non-sensitive sample content.
+`SKILL.md` contains a short agent skill: write a self-contained static HTML file, upload privately with the CLI, share the `https://aha.o-o.co/<id>` URL, publish only on explicit owner instruction. `templates/note.html` (short note) and `templates/plan.html` (long document) are the reference documents for the house style: copy the stylesheet, change the content. `fixtures/sample.html` is synthetic, non-sensitive sample content.
 
 ## Validation
 
-`pnpm verify` runs format check, typecheck, lint, tests and build. Tests cover absent/present/deleted markers, owner/private-read/public separation, storage-unavailable denial, `HEAD`/range/conditional handling, path traversal and invalid IDs, create-only name collisions, upload limits including absent/wrong `Content-Length`, invalid/missing config, update visibility preservation, private proxy path/redirect/header restrictions, CLI parsing and JSON output, and a Node HTTP smoke lifecycle. CI runs frozen install, `pnpm verify`, an offline Vercel function build, and isolated infrastructure checks, all without deployment credentials. See [the platform build gate](docs/deployment.md#platform-build-gate).
+`pnpm verify` runs format check, typecheck, lint, tests and build. Tests cover absent/present/deleted markers, owner/paired-browser/public separation, pairing (one-time, expiry, hashes only, revocation, cookie flags), storage-unavailable denial, `HEAD`/range/conditional handling, path traversal and invalid IDs, create-only name collisions through the R2 binding, upload limits including missing, oversized and lying `Content-Length`, invalid/missing config, update visibility preservation, CLI parsing, pairing commands and uploads against the real Worker handler, and a full Worker lifecycle against a fake R2 binding. CI runs frozen install, `pnpm verify` and isolated infrastructure checks, all without deployment credentials.

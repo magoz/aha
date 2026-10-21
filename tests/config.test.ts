@@ -5,25 +5,16 @@ import type { EnvMap, HeaderMap } from '../lib/headers.js'
 import { readConfig } from '../lib/config.js'
 
 function envWith(overrides: HeaderMap): EnvMap {
-  return {
-    AHA_OWNER_TOKEN: 'owner-token',
-    AHA_PRIVATE_READ_TOKEN: 'private-token',
-    R2_BUCKET: 'aha-dev',
-    R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
-    R2_ACCESS_KEY_ID: 'key-id',
-    R2_SECRET_ACCESS_KEY: 'secret',
-    ...overrides
-  }
+  return { AHA_OWNER_TOKEN: 'owner-token', ...overrides }
 }
 
 describe('config', () => {
-  it.effect('reads complete config', () =>
+  it.effect('reads complete config with the default public url', () =>
     Effect.gen(function* () {
       const config = yield* readConfig(envWith({}))
 
-      expect(config.bucket).toBe('aha-dev')
-      expect(config.region).toBe('auto')
-      expect(config.publicUrl).toBe('https://aha.oox.sh')
+      expect(config.ownerToken).toBe('owner-token')
+      expect(config.publicUrl).toBe('https://aha.o-o.co')
     })
   )
 
@@ -41,39 +32,13 @@ describe('config', () => {
     })
   )
 
-  it.effect('rejects missing owner token', () =>
+  it.effect('rejects a missing or blank owner token', () =>
     Effect.gen(function* () {
-      const env = envWith({})
-      delete env['AHA_OWNER_TOKEN']
-      const failure = yield* Effect.flip(readConfig(env))
+      const missing = yield* Effect.flip(readConfig({}))
+      const blank = yield* Effect.flip(readConfig(envWith({ AHA_OWNER_TOKEN: '  ' })))
 
-      expect(Predicate.isTagged(failure, 'InvalidConfig')).toBe(true)
-    })
-  )
-
-  it.effect('rejects identical owner and private-read tokens', () =>
-    Effect.gen(function* () {
-      const failure = yield* Effect.flip(
-        readConfig(envWith({ AHA_PRIVATE_READ_TOKEN: 'owner-token' }))
-      )
-
-      expect(Predicate.isTagged(failure, 'InvalidConfig')).toBe(true)
-    })
-  )
-
-  it.effect('rejects missing bucket and endpoint', () =>
-    Effect.gen(function* () {
-      const withoutBucket = envWith({})
-      delete withoutBucket['R2_BUCKET']
-      const first = yield* Effect.flip(readConfig(withoutBucket))
-
-      expect(Predicate.isTagged(first, 'InvalidConfig')).toBe(true)
-
-      const withoutEndpoint = envWith({})
-      delete withoutEndpoint['R2_ENDPOINT']
-      const second = yield* Effect.flip(readConfig(withoutEndpoint))
-
-      expect(Predicate.isTagged(second, 'InvalidConfig')).toBe(true)
+      expect(Predicate.isTagged(missing, 'InvalidConfig')).toBe(true)
+      expect(Predicate.isTagged(blank, 'InvalidConfig')).toBe(true)
     })
   )
 })

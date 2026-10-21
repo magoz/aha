@@ -16,8 +16,15 @@ imports Alchemy.
 - One private R2 bucket per stage: `aha-prod` for stage `prod`,
   `aha-dev` otherwise. No custom domains, no public access (`publicAccess:
   false` keeps the `r2.dev` domain disabled).
-- An account-owned `${bucketName}-service` API token with only R2 Bucket Item
-  Read and Write permission for that stage's bucket. Its secret is kept in
+- One Worker per stage (`aha-prod` on `aha.o-o.co`, `aha-dev` on
+  `aha-dev.o-o.co`) built from `../server/worker.ts`, with the bucket bound as
+  `AHA_BUCKET`, `AHA_PUBLIC_URL`, and the secret `AHA_OWNER_TOKEN` read from
+  the deploying shell (`AHA_OWNER_TOKEN=... pnpm exec alchemy deploy ...` or
+  `--env-file`). Cloudflare creates the custom domain's DNS record and
+  certificate; the `o-o.co` zone must be in the same account.
+- Legacy, until `aha.oox.sh` only redirects: an account-owned
+  `${bucketName}-service` API token with only R2 Bucket Item Read and Write
+  permission for that stage's bucket, used by the retired Vercel deployment. Its secret is kept in
   private Alchemy state, not printed as a stack output. Credential creation
   requires Cloudflare's account-level **API Tokens > Write** permission;
   being able to create buckets does not imply this permission. If the token
@@ -33,8 +40,8 @@ imports Alchemy.
 cd infra
 pnpm install --frozen-lockfile
 pnpm typecheck
-pnpm exec alchemy plan --stage prod --profile cloudflare-infra
-pnpm exec alchemy deploy --stage prod --profile cloudflare-infra --yes # operator-approved only
+AHA_OWNER_TOKEN=... pnpm exec alchemy plan --stage dev --profile cloudflare-infra
+AHA_OWNER_TOKEN=... pnpm exec alchemy deploy --stage dev --profile cloudflare-infra --yes # operator-approved only
 ```
 
 `cloudflare-infra` is the local provisioning profile used in this example;
@@ -43,17 +50,23 @@ profile must point at the same account and state backend before managing an
 existing stack; review the plan for unexpected bucket recreation.
 
 Authenticate with `pnpm exec alchemy login --configure --profile cloudflare-infra`
-and choose API Token. The provisioning token needs Account API Tokens Edit and
-Workers R2 Storage Edit for the selected account. Its permissions are
+and choose API Token. The provisioning token needs Account API Tokens Edit,
+Workers R2 Storage Edit and Workers Scripts Edit for the account, plus Zone
+Read, DNS Edit and Workers Routes Edit on `o-o.co` for the custom domains
+(the first Worker plan shows whether anything is missing). Its permissions are
 account-wide, unlike the bucket-scoped application token it creates. Do not put
 the provisioning token in Vercel. Reusing an existing state backend avoids
 requiring additional Workers/Secrets Store bootstrap permissions.
 
-Alchemy stores profile configuration under `~/.alchemy/profiles.json` and
-credentials under `~/.alchemy/credentials/`, never in this repository. Keep
+Alchemy stores profiles under `~/.alchemy/profiles/<name>/` and cached
+state-store credentials under `~/.alchemy/credentials/<name>/`, never in this
+repository. Upgrading from beta.74 migrates the old `profiles.json` layout and
+moves `credentials/` into a `.profiles-v0-*` backup; copy each profile's
+`cloudflare-state-store.json` back, or Alchemy offers to deploy a new state
+store. Keep
 credential files owner-readable only. Local `.alchemy/` artifacts are git-ignored.
 
-## Application credentials
+## Legacy application credentials
 
 Cloudflare's S3 access key ID is the account token's `tokenId`; the secret access
 key is the SHA-256 hex digest of its token `value`. Store these as production

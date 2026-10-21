@@ -1,54 +1,48 @@
 # Deployment
 
-## Vercel
+## Cloudflare Worker
 
-- Connect this repository as framework **Other**, Node 24, with `pnpm run build`.
-  Vercel also compiles `api/**/*.ts` as Node 24 serverless functions. Keep
-  `.npmrc`'s hoisted dependency layout: the Vercel TypeScript compiler cannot
-  resolve the SDK's transitive Smithy declarations with pnpm's isolated linker.
-  Do not disable strict checking or add casts to hide this resolution failure.
-- Set `AHA_OWNER_TOKEN`, `AHA_PRIVATE_READ_TOKEN`,
-  `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`
-  (`R2_REGION` optional, default `auto`) in the project environment.
-- `vercel.json` routes `/` to a static greeting, `/api/health` to a health
-  check, `/api/...` to document functions, and `/:id` (`[A-Za-z0-9_-]{1,80}`,
-  one path segment) to the public document function. No raw object routes exist.
-- Attach the `aha.oox.sh` domain after review. The R2 bucket and any direct
-  access domains stay private and disabled.
+`infra/alchemy.run.ts` provisions, per stage:
 
-## Platform build gate
+| Stage           | Bucket     | Worker     | Hostname         |
+| --------------- | ---------- | ---------- | ---------------- |
+| `prod`          | `aha-prod` | `aha-prod` | `aha.o-o.co`     |
+| everything else | `aha-dev`  | `aha-dev`  | `aha-dev.o-o.co` |
 
-CI runs `pnpm verify`, then a real Vercel function build using synthetic project
-settings in `fixtures/vercel-project.json` and an empty auth directory. No
-Vercel credentials, R2 credentials, environment pull, or deployment are needed.
-The fixture is for CI only; never replace a real project's `.vercel/project.json`
-with it. This catches platform-specific compiler failures the ordinary build
-cannot detect.
+- The Worker binds the bucket as `AHA_BUCKET`, gets `AHA_PUBLIC_URL`, and
+  stores `AHA_OWNER_TOKEN` as a secret read from the deploying shell (or
+  `--env-file`). There are no R2 API keys in the Worker.
+- The `o-o.co` zone must be in the same Cloudflare account as the bucket;
+  Cloudflare creates the DNS record and certificate for the custom domain.
+- Workers accept request bodies up to 100 MB on Free and Pro zones, hence
+  the 95 MiB page limit. Responses stream without a size limit.
+- Deploys, bucket creation and secret changes are operator actions:
 
-Before an authorized live deployment, run `vercel build` in a linked checkout
-with the intended environment. Build success alone does not prove live R2
-permissions, custom-domain routing, TLS, or split DNS; verify those separately.
+  ```sh
+  cd infra
+  pnpm install --frozen-lockfile
+  AHA_OWNER_TOKEN=... pnpm exec alchemy plan --stage dev --profile <profile>
+  AHA_OWNER_TOKEN=... pnpm exec alchemy deploy --stage dev --profile <profile>
+  ```
 
-## Private gateway and split DNS
+- `pnpm dev` (root) runs the dev stage locally under `alchemy dev`.
 
-The gateway (`gateway/`) binds `127.0.0.1` only and forwards credentialed
-reads to a fixed `https:` upstream alias that must differ from
-`aha.oox.sh` (otherwise split DNS would recurse the gateway into itself).
+## Smoke test after a deploy
 
-1. On a tailnet node, run:
+Use synthetic pages only, against the dev stage first:
 
-   ```sh
-   AHA_UPSTREAM_URL=https://aha-origin.oox.sh \
-   AHA_PRIVATE_READ_TOKEN=<private-read-token> \
-   pnpm gateway -- --port 3938
-   ```
+1. `aha upload` a page over 5 MB, then `aha read` it back.
+2. Upload the same name again: 409. Upload a file over 95 MiB: refused by the
+   CLI; a raw request with a larger `Content-Length` returns 413.
+3. Private page: 404 in a fresh browser. `aha pair`, open the link, press the
+   button, reload the page: it shows.
+4. `aha publish`: a private window shows it. `aha unpublish`: 404 again.
+5. `aha devices`, then `aha unpair <id>`: the paired browser gets 404.
 
-2. Terminate TLS for `aha.oox.sh` in front of `127.0.0.1:3938` with a
-   tailnet-only reverse proxy (for example Caddy with a `reverse_proxy`
-   to `127.0.0.1:3938`).
-3. Serve `aha.oox.sh` from public DNS to Vercel and from tailnet DNS to
-   the proxy. The origin decides access by bearer credential or publication
-   marker, never by hostname, headers, or client IP.
+## Legacy `aha.oox.sh`
 
-`AHA_GATEWAY_INSECURE_LOOPBACK=1` permits `http:` loopback upstreams for
-local tests and development only. Production stays `https:`-only.
+The root `vercel.json` only redirects `aha.oox.sh/*` to `aha.o-o.co/*`
+(308, path kept). Deploy it to the existing Vercel project once the prod
+Worker is live, then retire the tailnet split DNS, Caddy site and private
+gateway for `aha.oox.sh`, and remove the legacy R2 API token resource and
+the old Vercel environment variables.

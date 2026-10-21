@@ -1,57 +1,86 @@
 import { Effect } from 'effect'
 
+import { isOwnerAuthorization } from './auth.js'
 import type { ServiceConfig } from './config.js'
 import {
+  authorizeRead,
   deleteDocument,
   listDocuments,
   publishDocument,
-  readDocumentWithAccess,
   unpublishDocument,
   updateDocument,
   uploadDocument
 } from './documents.js'
-import { MAX_HTML_BYTES } from './html-limits.js'
-import { isPlanId, isReservedDocumentName } from './plan-id.js'
-import { withSecurityHeaders } from './security-headers.js'
+import type { ReaderCredentials } from './documents.js'
+import type { DocumentNotFound, StorageUnavailable } from './errors.js'
 import type { HeaderMap } from './headers.js'
+import { isPlanId, isReservedDocumentName } from './plan-id.js'
+import type { PlanId } from './plan-id.js'
+import { withSecurityHeaders } from './security-headers.js'
+import {
+  completePairing,
+  createPairing,
+  listSessions,
+  revokeAllSessions,
+  revokeSession,
+  sessionCookie,
+  sessionTokenFromCookies
+} from './sessions.js'
+import type { SessionStoreTag } from './sessions.js'
 import { AhaStorageTag } from './storage.js'
+import type { ByteStream, DocumentUpload } from './storage.js'
 
 export interface AhaRequest {
   readonly method: string
   readonly url: string
   readonly headers: Readonly<HeaderMap>
-  readonly body: Uint8Array | null
+  readonly body: ByteStream | null
 }
+
+export type ResponseBody = ByteStream | Uint8Array<ArrayBuffer> | null
 
 export interface AhaResponse {
   readonly status: number
   readonly headers: HeaderMap
-  readonly body: Uint8Array | null
+  readonly body: ResponseBody
 }
 
-interface RouteTarget {
-  readonly kind: string
-  readonly id: string | null
-}
+type Route =
+  | { readonly kind: 'root' }
+  | { readonly kind: 'health' }
+  | { readonly kind: 'invalid-id' }
+  | { readonly kind: 'page'; readonly id: PlanId }
+  | { readonly kind: 'documents' }
+  | { readonly kind: 'document-api'; readonly id: PlanId }
+  | { readonly kind: 'publish'; readonly id: PlanId }
+  | { readonly kind: 'unpublish'; readonly id: PlanId }
+  | { readonly kind: 'pairings' }
+  | { readonly kind: 'pair-page'; readonly code: string }
+  | { readonly kind: 'sessions' }
+  | { readonly kind: 'session'; readonly id: string }
+
+type Handled = Effect.Effect<AhaResponse, never, AhaStorageTag | SessionStoreTag>
 
 const textEncoder = new TextEncoder()
 
+// The pairing page is the only HTML the Worker writes itself: a script-free form posting to itself.
+const PAIR_PAGE_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+
 function headerValue(headers: Readonly<HeaderMap>, name: string): string | null {
-  const value = headers[name.toLowerCase()]
-
-  if (value === undefined) {
-    return null
-  }
-
-  return value
+  return headers[name.toLowerCase()] ?? null
 }
 
-function jsonResponse(status: number, value: string): AhaResponse {
+function jsonResponse(status: number, json: string): AhaResponse {
   return {
     status,
     headers: withSecurityHeaders({ 'content-type': 'application/json; charset=utf-8' }),
-    body: textEncoder.encode(value)
+    body: textEncoder.encode(json)
   }
+}
+
+function errorResponse(status: number, code: string): AhaResponse {
+  return jsonResponse(status, JSON.stringify({ error: code }))
 }
 
 function textResponse(status: number, value: string): AhaResponse {
@@ -62,8 +91,26 @@ function textResponse(status: number, value: string): AhaResponse {
   }
 }
 
-function errorJson(code: string): string {
-  return JSON.stringify({ error: code })
+function notFound(): AhaResponse {
+  return textResponse(404, 'not found')
+}
+
+function storageUnavailable(): Effect.Effect<AhaResponse> {
+  return Effect.succeed(errorResponse(502, 'storage-unavailable'))
+}
+
+function pairPage(status: number, title: string, body: string, extra: HeaderMap): AhaResponse {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:28rem;margin:20vh auto;padding:0 1.5rem;color:#1a1a1a;background:#fafaf8}@media (prefers-color-scheme:dark){body{color:#eee;background:#161616}}h1{font-size:1.4rem;margin:0 0 .5rem}button{font:inherit;padding:.7rem 1.4rem;border:0;border-radius:.6rem;background:#2f5bea;color:#fff;cursor:pointer}</style></head><body>${body}</body></html>`
+
+  return {
+    status,
+    headers: withSecurityHeaders({
+      'content-type': 'text/html; charset=utf-8',
+      'content-security-policy': PAIR_PAGE_CSP,
+      ...extra
+    }),
+    body: textEncoder.encode(html)
+  }
 }
 
 function hasSuspiciousEncoding(pathname: string): boolean {
@@ -71,15 +118,7 @@ function hasSuspiciousEncoding(pathname: string): boolean {
 }
 
 function splitPath(pathname: string): ReadonlyArray<string> | null {
-  if (!pathname.startsWith('/')) {
-    return null
-  }
-
-  if (hasSuspiciousEncoding(pathname)) {
-    return null
-  }
-
-  if (pathname.includes('//')) {
+  if (!pathname.startsWith('/') || hasSuspiciousEncoding(pathname) || pathname.includes('//')) {
     return null
   }
 
@@ -116,86 +155,68 @@ function etagMatches(ifNoneMatch: string | null, etag: string): boolean {
     return false
   }
 
-  const normalized = normalizeEtag(etag)
-
   if (ifNoneMatch.trim() === '*') {
     return true
   }
 
-  const candidates = ifNoneMatch.split(',')
+  const normalized = normalizeEtag(etag)
 
-  for (const candidate of candidates) {
-    if (normalizeEtag(candidate) === normalized) {
-      return true
-    }
-  }
-
-  return false
+  return ifNoneMatch.split(',').some((candidate) => normalizeEtag(candidate) === normalized)
 }
 
-function routeFor(parts: ReadonlyArray<string>): RouteTarget | null {
-  if (parts.length === 0) {
-    return { kind: 'root', id: null }
+function documentRoute(id: string | undefined, build: (id: PlanId) => Route): Route {
+  return id !== undefined && isPlanId(id) ? build(id) : { kind: 'invalid-id' }
+}
+
+function routeFor(parts: ReadonlyArray<string>): Route | null {
+  const [first, second, third, fourth] = parts
+
+  if (first === undefined) {
+    return { kind: 'root' }
   }
 
   if (parts.length === 1) {
-    const only = parts[0]
-
-    if (only === undefined) {
-      return null
-    }
-
-    if (isPlanId(only) && !isReservedDocumentName(only)) {
-      return { kind: 'public-document', id: only }
-    }
-
-    return null
+    return isPlanId(first) && !isReservedDocumentName(first) ? { kind: 'page', id: first } : null
   }
 
-  const first = parts[0]
-  const second = parts[1]
-
-  if (first === undefined || second === undefined) {
-    return null
+  if (first === 'pair' && parts.length === 2 && second !== undefined) {
+    return { kind: 'pair-page', code: second }
   }
 
   if (first !== 'api') {
     return null
   }
 
-  if (second === 'health' && parts.length === 2) {
-    return { kind: 'health', id: null }
+  if (parts.length === 2) {
+    if (second === 'health') return { kind: 'health' }
+
+    if (second === 'documents') return { kind: 'documents' }
+
+    if (second === 'pair') return { kind: 'pairings' }
+
+    if (second === 'sessions') return { kind: 'sessions' }
+
+    return null
   }
 
-  if (second === 'documents' && parts.length === 2) {
-    return { kind: 'documents', id: null }
+  if (second === 'sessions' && parts.length === 3 && third !== undefined) {
+    return { kind: 'session', id: third }
   }
 
-  if (second === 'documents' && parts.length === 3) {
-    const third = parts[2]
-
-    if (third === undefined || !isPlanId(third)) {
-      return { kind: 'invalid-id', id: null }
-    }
-
-    return { kind: 'document-api', id: third }
+  if (second !== 'documents') {
+    return null
   }
 
-  if (second === 'documents' && parts.length === 4) {
-    const third = parts[2]
-    const fourth = parts[3]
+  if (parts.length === 3) {
+    return documentRoute(third, (id) => ({ kind: 'document-api', id }))
+  }
 
-    if (third === undefined || fourth === undefined || !isPlanId(third)) {
-      return { kind: 'invalid-id', id: null }
-    }
+  if (parts.length === 4 && fourth === 'publish') {
+    return documentRoute(third, (id) => ({ kind: 'publish', id }))
+  }
 
-    if (fourth === 'publish') {
-      return { kind: 'publish', id: third }
-    }
-
-    if (fourth === 'unpublish') {
-      return { kind: 'unpublish', id: third }
-    }
+  if (parts.length === 4 && fourth === 'unpublish') {
+    return documentRoute(third, (id) => ({ kind: 'unpublish', id }))
   }
 
   return null
@@ -204,333 +225,419 @@ function routeFor(parts: ReadonlyArray<string>): RouteTarget | null {
 function contentLengthHeader(headers: Readonly<HeaderMap>): number | null {
   const raw = headerValue(headers, 'content-length')
 
-  if (raw === null || raw.trim().length === 0) {
+  if (raw === null || !/^\d+$/.test(raw.trim())) {
     return null
   }
 
   const parsed = Number.parseInt(raw.trim(), 10)
 
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+  return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+function emptyStream(): ByteStream {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.close()
+    }
+  })
+}
+
+// Uploads must declare their length so storage can enforce it while streaming.
+function uploadOf(request: AhaRequest): DocumentUpload | null {
+  const contentLength = contentLengthHeader(request.headers)
+
+  if (contentLength === null) {
     return null
   }
 
-  return parsed
+  return { body: request.body ?? emptyStream(), contentLength }
 }
 
-export function handleAhaRequest(
-  request: AhaRequest,
-  config: ServiceConfig
-): Effect.Effect<AhaResponse, never, AhaStorageTag> {
+export function handleAhaRequest(request: AhaRequest, config: ServiceConfig): Handled {
   const parsed = new URL(request.url, 'http://localhost')
   const parts = splitPath(parsed.pathname)
-
-  if (parts === null) {
-    return Effect.succeed(textResponse(404, 'not found'))
-  }
-
-  const route = routeFor(parts)
-
-  if (route === null) {
-    return Effect.succeed(textResponse(404, 'not found'))
-  }
-
-  if (route.kind === 'root') {
-    return Effect.succeed(handleRoot(request.method))
-  }
-
-  if (route.kind === 'health') {
-    return Effect.succeed(handleHealth(request.method))
-  }
-
-  if (route.kind === 'invalid-id') {
-    return Effect.succeed(jsonResponse(400, errorJson('invalid-id')))
-  }
-
-  if (route.kind === 'public-document') {
-    return handlePublicDocument(request, route.id, config)
-  }
-
-  if (route.kind === 'documents') {
-    return handleDocumentCollection(request, parsed, config)
-  }
-
-  if (route.kind === 'document-api') {
-    return handleDocumentApi(request, route.id, config)
-  }
-
-  if (route.kind === 'publish') {
-    return handleVisibility(request, route.id, true, config)
-  }
-
-  if (route.kind === 'unpublish') {
-    return handleVisibility(request, route.id, false, config)
-  }
-
-  return Effect.succeed(textResponse(404, 'not found'))
-}
-
-function handleRoot(method: string): AhaResponse {
-  const upper = method.toUpperCase()
-
-  if (upper !== 'GET' && upper !== 'HEAD') {
-    return jsonResponse(405, errorJson('method-not-allowed'))
-  }
-
-  if (upper === 'HEAD') {
-    return {
-      status: 200,
-      headers: withSecurityHeaders({ 'content-type': 'text/plain; charset=utf-8' }),
-      body: null
-    }
-  }
-
-  return textResponse(200, 'aha')
-}
-
-function handleHealth(method: string): AhaResponse {
-  const upper = method.toUpperCase()
-
-  if (upper !== 'GET' && upper !== 'HEAD') {
-    return jsonResponse(405, errorJson('method-not-allowed'))
-  }
-
-  if (upper === 'HEAD') {
-    return {
-      status: 200,
-      headers: withSecurityHeaders({ 'content-type': 'application/json; charset=utf-8' }),
-      body: null
-    }
-  }
-
-  return jsonResponse(200, JSON.stringify({ ok: true }))
-}
-
-function handlePublicDocument(
-  request: AhaRequest,
-  id: string | null,
-  config: ServiceConfig
-): Effect.Effect<AhaResponse, never, AhaStorageTag> {
+  const route = parts === null ? null : routeFor(parts)
   const method = request.method.toUpperCase()
 
-  if (id === null) {
-    return Effect.succeed(textResponse(404, 'not found'))
+  if (route === null) {
+    return Effect.succeed(notFound())
   }
 
-  if (method !== 'GET' && method !== 'HEAD') {
-    return Effect.succeed(jsonResponse(405, errorJson('method-not-allowed')))
+  switch (route.kind) {
+    case 'root':
+      return Effect.succeed(handleStatic(method, textResponse(200, 'aha')))
+    case 'health':
+      return Effect.succeed(handleStatic(method, jsonResponse(200, JSON.stringify({ ok: true }))))
+    case 'invalid-id':
+      return Effect.succeed(errorResponse(400, 'invalid-id'))
+    case 'page':
+      return handlePage(request, method, route.id, config)
+    case 'documents':
+      return handleDocumentCollection(request, method, parsed, config)
+    case 'document-api':
+      return handleDocumentApi(request, method, route.id, config)
+    case 'publish':
+      return handleVisibility(request, method, route.id, true, config)
+    case 'unpublish':
+      return handleVisibility(request, method, route.id, false, config)
+    case 'pairings':
+      return handlePairings(request, method, config)
+    case 'pair-page':
+      return handlePairPage(request, method, route.code)
+    case 'sessions':
+      return handleSessions(request, method, config)
+    case 'session':
+      return handleSession(request, method, route.id, config)
+  }
+}
+
+function handleStatic(method: string, response: AhaResponse): AhaResponse {
+  if (method === 'GET') {
+    return response
   }
 
-  const authorization = headerValue(request.headers, 'authorization')
-  const ifNoneMatch = headerValue(request.headers, 'if-none-match')
-  const isHead = method === 'HEAD'
-  const documentId = id
+  if (method === 'HEAD') {
+    return { ...response, body: null }
+  }
 
-  return readDocumentWithAccess(documentId, authorization, config).pipe(
-    Effect.map((result) => {
-      if (etagMatches(ifNoneMatch, result.document.etag)) {
+  return errorResponse(405, 'method-not-allowed')
+}
+
+function cancelQuietly(body: ByteStream): Effect.Effect<void> {
+  return Effect.promise(() => body.cancel().catch(() => undefined))
+}
+
+// Streams a document the caller may read. HEAD never opens the body; a matching `If-None-Match`
+// answers 304 and releases the stream.
+function streamDocument(
+  id: PlanId,
+  isHead: boolean,
+  ifNoneMatch: string | null,
+  extra: HeaderMap
+): Effect.Effect<AhaResponse, StorageUnavailable | DocumentNotFound, AhaStorageTag> {
+  return Effect.gen(function* () {
+    const storage = yield* AhaStorageTag
+
+    if (isHead) {
+      const head = yield* storage.headDocument(id)
+
+      if (etagMatches(ifNoneMatch, head.etag)) {
         return {
           status: 304,
-          headers: withSecurityHeaders({ etag: result.document.etag }),
+          headers: withSecurityHeaders({ etag: head.etag, ...extra }),
           body: null
         }
       }
 
-      const headers = withSecurityHeaders({
-        'content-type': 'text/html; charset=utf-8',
-        'content-length': String(result.document.body.length),
-        etag: result.document.etag
-      })
-
-      if (isHead) {
-        return { status: 200, headers, body: null }
+      return {
+        status: 200,
+        headers: withSecurityHeaders({
+          'content-type': 'text/html; charset=utf-8',
+          'content-length': String(head.contentLength),
+          etag: head.etag,
+          ...extra
+        }),
+        body: null
       }
+    }
 
-      return { status: 200, headers, body: result.document.body }
+    const document = yield* storage.getDocument(id)
+
+    if (etagMatches(ifNoneMatch, document.etag)) {
+      yield* cancelQuietly(document.body)
+
+      return {
+        status: 304,
+        headers: withSecurityHeaders({ etag: document.etag, ...extra }),
+        body: null
+      }
+    }
+
+    return {
+      status: 200,
+      headers: withSecurityHeaders({
+        'content-type': 'text/html; charset=utf-8',
+        'content-length': String(document.contentLength),
+        etag: document.etag,
+        ...extra
+      }),
+      body: document.body
+    }
+  })
+}
+
+function handlePage(
+  request: AhaRequest,
+  method: string,
+  id: PlanId,
+  config: ServiceConfig
+): Handled {
+  if (method !== 'GET' && method !== 'HEAD') {
+    return Effect.succeed(errorResponse(405, 'method-not-allowed'))
+  }
+
+  const credentials: ReaderCredentials = {
+    authorization: headerValue(request.headers, 'authorization'),
+    sessionToken: sessionTokenFromCookies(headerValue(request.headers, 'cookie'))
+  }
+
+  return authorizeRead(id, credentials, config).pipe(
+    Effect.flatMap((access) => {
+      const renew: HeaderMap =
+        access.grant === 'paired-browser' && credentials.sessionToken !== null
+          ? { 'set-cookie': sessionCookie(credentials.sessionToken) }
+          : {}
+
+      return streamDocument(
+        access.id,
+        method === 'HEAD',
+        headerValue(request.headers, 'if-none-match'),
+        renew
+      )
     }),
-    Effect.catchTag('StorageUnavailable', () =>
-      Effect.succeed(jsonResponse(502, errorJson('storage-unavailable')))
-    ),
-    Effect.orElseSucceed(() => textResponse(404, 'not found'))
+    Effect.catchTag('StorageUnavailable', storageUnavailable),
+    // Private, missing and invalid all look the same to someone without access.
+    Effect.orElseSucceed(notFound)
   )
 }
 
 function handleDocumentCollection(
   request: AhaRequest,
+  method: string,
   parsed: URL,
   config: ServiceConfig
-): Effect.Effect<AhaResponse, never, AhaStorageTag> {
-  const method = request.method.toUpperCase()
+): Handled {
   const authorization = headerValue(request.headers, 'authorization')
 
   if (method === 'GET') {
-    const onlyPublic = parsed.searchParams.get('public') === '1'
-
-    return listDocuments(authorization, onlyPublic, config).pipe(
+    return listDocuments(authorization, parsed.searchParams.get('public') === '1', config).pipe(
       Effect.map((entries) => jsonResponse(200, JSON.stringify(entries))),
-      Effect.catchTag('StorageUnavailable', () =>
-        Effect.succeed(jsonResponse(502, errorJson('storage-unavailable')))
-      ),
-      Effect.orElseSucceed(() => jsonResponse(401, errorJson('unauthorized')))
+      Effect.catchTag('StorageUnavailable', storageUnavailable),
+      Effect.orElseSucceed(() => errorResponse(401, 'unauthorized'))
     )
   }
 
-  if (method === 'POST') {
-    const declared = contentLengthHeader(request.headers)
-
-    if (declared !== null && declared > MAX_HTML_BYTES) {
-      return Effect.succeed(jsonResponse(413, errorJson('payload-too-large')))
-    }
-
-    const contentType = headerValue(request.headers, 'content-type') ?? ''
-    const body = request.body ?? new Uint8Array(0)
-
-    const name = parsed.searchParams.get('name')
-
-    return uploadDocument(name, body, contentType, authorization, config).pipe(
-      Effect.map((created) =>
-        jsonResponse(
-          201,
-          JSON.stringify({
-            id: created.id,
-            url: `${config.publicUrl}/${created.id}`,
-            etag: created.etag
-          })
-        )
-      ),
-      Effect.catchTags({
-        Unauthorized: () => Effect.succeed(jsonResponse(401, errorJson('unauthorized'))),
-        UnsupportedMediaType: () =>
-          Effect.succeed(jsonResponse(415, errorJson('unsupported-media-type'))),
-        PayloadTooLarge: () => Effect.succeed(jsonResponse(413, errorJson('payload-too-large'))),
-        InvalidDocumentName: () => Effect.succeed(jsonResponse(400, errorJson('invalid-name'))),
-        DocumentExists: () => Effect.succeed(jsonResponse(409, errorJson('name-taken')))
-      }),
-      Effect.orElseSucceed(() => jsonResponse(502, errorJson('storage-unavailable')))
-    )
+  if (method !== 'POST') {
+    return Effect.succeed(errorResponse(405, 'method-not-allowed'))
   }
 
-  return Effect.succeed(jsonResponse(405, errorJson('method-not-allowed')))
+  return uploadDocument(
+    parsed.searchParams.get('name'),
+    uploadOf(request),
+    headerValue(request.headers, 'content-type') ?? '',
+    authorization,
+    config
+  ).pipe(
+    Effect.map((created) =>
+      jsonResponse(
+        201,
+        JSON.stringify({
+          id: created.id,
+          url: `${config.publicUrl}/${created.id}`,
+          etag: created.etag
+        })
+      )
+    ),
+    Effect.catchTags({
+      Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
+      UnsupportedMediaType: () => Effect.succeed(errorResponse(415, 'unsupported-media-type')),
+      LengthRequired: () => Effect.succeed(errorResponse(411, 'length-required')),
+      PayloadTooLarge: () => Effect.succeed(errorResponse(413, 'payload-too-large')),
+      InvalidDocumentName: () => Effect.succeed(errorResponse(400, 'invalid-name')),
+      DocumentExists: () => Effect.succeed(errorResponse(409, 'name-taken'))
+    }),
+    Effect.orElseSucceed(() => errorResponse(502, 'storage-unavailable'))
+  )
 }
 
 function handleDocumentApi(
   request: AhaRequest,
-  id: string | null,
+  method: string,
+  id: PlanId,
   config: ServiceConfig
-): Effect.Effect<AhaResponse, never, AhaStorageTag> {
-  const method = request.method.toUpperCase()
-
-  if (id === null) {
-    return Effect.succeed(jsonResponse(400, errorJson('invalid-id')))
-  }
-
+): Handled {
   const authorization = headerValue(request.headers, 'authorization')
-  const documentId = id
 
   if (method === 'GET' || method === 'HEAD') {
-    const ifNoneMatch = headerValue(request.headers, 'if-none-match')
-    const isHead = method === 'HEAD'
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
+      return Effect.succeed(errorResponse(401, 'unauthorized'))
+    }
 
-    return readDocumentWithAccess(documentId, authorization, config).pipe(
-      Effect.map((result) => {
-        if (etagMatches(ifNoneMatch, result.document.etag)) {
-          return {
-            status: 304,
-            headers: withSecurityHeaders({ etag: result.document.etag }),
-            body: null
-          }
-        }
-
-        const headers = withSecurityHeaders({
-          'content-type': 'text/html; charset=utf-8',
-          'content-length': String(result.document.body.length),
-          etag: result.document.etag
-        })
-
-        if (isHead) {
-          return { status: 200, headers, body: null }
-        }
-
-        return { status: 200, headers, body: result.document.body }
-      }),
+    return streamDocument(
+      id,
+      method === 'HEAD',
+      headerValue(request.headers, 'if-none-match'),
+      {}
+    ).pipe(
       Effect.catchTags({
-        StorageUnavailable: () =>
-          Effect.succeed(jsonResponse(502, errorJson('storage-unavailable'))),
-        DocumentNotFound: () => Effect.succeed(jsonResponse(404, errorJson('not-found')))
-      }),
-      Effect.orElseSucceed(() => jsonResponse(401, errorJson('unauthorized')))
+        StorageUnavailable: storageUnavailable,
+        DocumentNotFound: () => Effect.succeed(errorResponse(404, 'not-found'))
+      })
     )
   }
 
   if (method === 'PUT') {
-    const declared = contentLengthHeader(request.headers)
-
-    if (declared !== null && declared > MAX_HTML_BYTES) {
-      return Effect.succeed(jsonResponse(413, errorJson('payload-too-large')))
-    }
-
-    const contentType = headerValue(request.headers, 'content-type') ?? ''
-    const ifMatch = headerValue(request.headers, 'if-match')
-    const body = request.body ?? new Uint8Array(0)
-
-    return updateDocument(documentId, body, contentType, authorization, ifMatch, config).pipe(
-      Effect.map((etag) => jsonResponse(200, JSON.stringify({ id: documentId, etag }))),
+    return updateDocument(
+      id,
+      uploadOf(request),
+      headerValue(request.headers, 'content-type') ?? '',
+      authorization,
+      headerValue(request.headers, 'if-match'),
+      config
+    ).pipe(
+      Effect.map((etag) => jsonResponse(200, JSON.stringify({ id, etag }))),
       Effect.catchTags({
-        Unauthorized: () => Effect.succeed(jsonResponse(401, errorJson('unauthorized'))),
-        UnsupportedMediaType: () =>
-          Effect.succeed(jsonResponse(415, errorJson('unsupported-media-type'))),
-        PayloadTooLarge: () => Effect.succeed(jsonResponse(413, errorJson('payload-too-large'))),
-        DocumentNotFound: () => Effect.succeed(jsonResponse(404, errorJson('not-found'))),
-        PreconditionFailed: () =>
-          Effect.succeed(jsonResponse(412, errorJson('precondition-failed')))
+        Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
+        UnsupportedMediaType: () => Effect.succeed(errorResponse(415, 'unsupported-media-type')),
+        LengthRequired: () => Effect.succeed(errorResponse(411, 'length-required')),
+        PayloadTooLarge: () => Effect.succeed(errorResponse(413, 'payload-too-large')),
+        DocumentNotFound: () => Effect.succeed(errorResponse(404, 'not-found')),
+        PreconditionFailed: () => Effect.succeed(errorResponse(412, 'precondition-failed'))
       }),
-      Effect.orElseSucceed(() => jsonResponse(502, errorJson('storage-unavailable')))
+      Effect.orElseSucceed(() => errorResponse(502, 'storage-unavailable'))
     )
   }
 
   if (method === 'DELETE') {
-    return deleteDocument(documentId, authorization, config).pipe(
-      Effect.map(() => jsonResponse(200, JSON.stringify({ id: documentId, deleted: true }))),
+    return deleteDocument(id, authorization, config).pipe(
+      Effect.map(() => jsonResponse(200, JSON.stringify({ id, deleted: true }))),
       Effect.catchTags({
-        Unauthorized: () => Effect.succeed(jsonResponse(401, errorJson('unauthorized'))),
-        DocumentNotFound: () => Effect.succeed(jsonResponse(404, errorJson('not-found'))),
-        PreconditionFailed: () => Effect.succeed(jsonResponse(409, errorJson('published')))
+        Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
+        DocumentNotFound: () => Effect.succeed(errorResponse(404, 'not-found')),
+        PreconditionFailed: () => Effect.succeed(errorResponse(409, 'published'))
       }),
-      Effect.orElseSucceed(() => jsonResponse(502, errorJson('storage-unavailable')))
+      Effect.orElseSucceed(() => errorResponse(502, 'storage-unavailable'))
     )
   }
 
-  return Effect.succeed(jsonResponse(405, errorJson('method-not-allowed')))
+  return Effect.succeed(errorResponse(405, 'method-not-allowed'))
 }
 
 function handleVisibility(
   request: AhaRequest,
-  id: string | null,
+  method: string,
+  id: PlanId,
   publish: boolean,
   config: ServiceConfig
-): Effect.Effect<AhaResponse, never, AhaStorageTag> {
-  const method = request.method.toUpperCase()
-
-  if (id === null) {
-    return Effect.succeed(jsonResponse(400, errorJson('invalid-id')))
-  }
-
+): Handled {
   if (method !== 'POST') {
-    return Effect.succeed(jsonResponse(405, errorJson('method-not-allowed')))
+    return Effect.succeed(errorResponse(405, 'method-not-allowed'))
   }
 
   const authorization = headerValue(request.headers, 'authorization')
-  const documentId = id
 
   const action = publish
-    ? publishDocument(documentId, authorization, config)
-    : unpublishDocument(documentId, authorization, config)
+    ? publishDocument(id, authorization, config)
+    : unpublishDocument(id, authorization, config)
 
   return action.pipe(
-    Effect.map(() => jsonResponse(200, JSON.stringify({ id: documentId, public: publish }))),
+    Effect.map(() => jsonResponse(200, JSON.stringify({ id, public: publish }))),
     Effect.catchTags({
-      Unauthorized: () => Effect.succeed(jsonResponse(401, errorJson('unauthorized'))),
-      DocumentNotFound: () => Effect.succeed(jsonResponse(404, errorJson('not-found')))
+      Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
+      DocumentNotFound: () => Effect.succeed(errorResponse(404, 'not-found'))
     }),
-    Effect.orElseSucceed(() => jsonResponse(502, errorJson('storage-unavailable')))
+    Effect.orElseSucceed(() => errorResponse(502, 'storage-unavailable'))
+  )
+}
+
+function handlePairings(request: AhaRequest, method: string, config: ServiceConfig): Handled {
+  if (method !== 'POST') {
+    return Effect.succeed(errorResponse(405, 'method-not-allowed'))
+  }
+
+  return createPairing(headerValue(request.headers, 'authorization'), config).pipe(
+    Effect.map((pairing) =>
+      jsonResponse(
+        201,
+        JSON.stringify({
+          url: `${config.publicUrl}/pair/${pairing.code}`,
+          expiresAt: new Date(pairing.expiresAt).toISOString()
+        })
+      )
+    ),
+    Effect.catchTag('Unauthorized', () => Effect.succeed(errorResponse(401, 'unauthorized'))),
+    Effect.catchTag('StorageUnavailable', storageUnavailable)
+  )
+}
+
+// GET only shows a button, so link previews in chat apps cannot use up the code; POST pairs.
+function handlePairPage(request: AhaRequest, method: string, code: string): Handled {
+  if (method === 'GET' || method === 'HEAD') {
+    const page = pairPage(
+      200,
+      'Pair this browser',
+      '<h1>Pair this browser</h1><p>This browser will be able to open your private Aha pages.</p><form method="post"><button type="submit">Pair this browser</button></form>',
+      {}
+    )
+
+    return Effect.succeed(method === 'HEAD' ? { ...page, body: null } : page)
+  }
+
+  if (method !== 'POST') {
+    return Effect.succeed(errorResponse(405, 'method-not-allowed'))
+  }
+
+  return completePairing(code, headerValue(request.headers, 'user-agent')).pipe(
+    Effect.map((token) =>
+      pairPage(
+        200,
+        'Browser paired',
+        '<h1>Browser paired</h1><p>Private Aha pages now open in this browser.</p>',
+        { 'set-cookie': sessionCookie(token) }
+      )
+    ),
+    Effect.catchTag('PairingInvalid', () =>
+      Effect.succeed(
+        pairPage(
+          410,
+          'Link expired',
+          '<h1>Link expired</h1><p>This pairing link was already used or has expired. Run <code>aha pair</code> again.</p>',
+          {}
+        )
+      )
+    ),
+    Effect.catchTag('StorageUnavailable', storageUnavailable)
+  )
+}
+
+function handleSessions(request: AhaRequest, method: string, config: ServiceConfig): Handled {
+  const authorization = headerValue(request.headers, 'authorization')
+
+  if (method === 'GET') {
+    return listSessions(authorization, config).pipe(
+      Effect.map((sessions) => jsonResponse(200, JSON.stringify(sessions))),
+      Effect.catchTag('Unauthorized', () => Effect.succeed(errorResponse(401, 'unauthorized'))),
+      Effect.catchTag('StorageUnavailable', storageUnavailable)
+    )
+  }
+
+  if (method === 'DELETE') {
+    return revokeAllSessions(authorization, config).pipe(
+      Effect.map((revoked) => jsonResponse(200, JSON.stringify({ revoked }))),
+      Effect.catchTag('Unauthorized', () => Effect.succeed(errorResponse(401, 'unauthorized'))),
+      Effect.catchTag('StorageUnavailable', storageUnavailable)
+    )
+  }
+
+  return Effect.succeed(errorResponse(405, 'method-not-allowed'))
+}
+
+function handleSession(
+  request: AhaRequest,
+  method: string,
+  id: string,
+  config: ServiceConfig
+): Handled {
+  if (method !== 'DELETE') {
+    return Effect.succeed(errorResponse(405, 'method-not-allowed'))
+  }
+
+  return revokeSession(id, headerValue(request.headers, 'authorization'), config).pipe(
+    Effect.map(() => jsonResponse(200, JSON.stringify({ id, revoked: true }))),
+    Effect.catchTags({
+      Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
+      SessionNotFound: () => Effect.succeed(errorResponse(404, 'not-found'))
+    }),
+    Effect.catchTag('StorageUnavailable', storageUnavailable)
   )
 }

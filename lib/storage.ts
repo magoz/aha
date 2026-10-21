@@ -9,16 +9,24 @@ import type {
 } from './errors.js'
 import type { PlanId } from './plan-id.js'
 
-export interface StoredDocument {
-  readonly body: Uint8Array
-  readonly contentType: string
-  readonly etag: string
-}
+// Document bytes are streamed end to end; a 95 MiB page never sits in Worker memory.
+export type ByteStream = ReadableStream<Uint8Array>
 
 export interface DocumentHead {
   readonly contentType: string
   readonly contentLength: number
   readonly etag: string
+}
+
+export interface StoredDocument extends DocumentHead {
+  readonly body: ByteStream
+}
+
+// A request body with its declared `Content-Length`. Storage must reject a body whose actual length
+// differs, so the size checked against the limit is the size stored.
+export interface DocumentUpload {
+  readonly body: ByteStream
+  readonly contentLength: number
 }
 
 export interface ListEntry {
@@ -45,12 +53,9 @@ export interface AhaStorage {
   ) => Effect.Effect<DocumentHead, StorageUnavailable | DocumentNotFound>
   readonly putDocument: (
     id: PlanId,
-    body: Uint8Array,
+    upload: DocumentUpload,
     options: PutOptions
-  ) => Effect.Effect<
-    string,
-    StorageUnavailable | DocumentNotFound | PreconditionFailed | DocumentExists
-  >
+  ) => Effect.Effect<string, StorageUnavailable | PreconditionFailed | DocumentExists>
   readonly deleteDocument: (
     id: PlanId
   ) => Effect.Effect<void, StorageUnavailable | DocumentNotFound>
