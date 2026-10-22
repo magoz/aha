@@ -5,6 +5,7 @@ import type { ServiceConfig } from './config.js'
 import {
   DocumentExists,
   DocumentNotFound,
+  LengthMismatch,
   LengthRequired,
   PayloadTooLarge,
   PreconditionFailed,
@@ -67,6 +68,7 @@ export function uploadDocument(
   | Unauthorized
   | UnsupportedMediaType
   | LengthRequired
+  | LengthMismatch
   | PayloadTooLarge
   | InvalidDocumentName
   | StorageUnavailable
@@ -116,6 +118,7 @@ export function updateDocument(
   | Unauthorized
   | UnsupportedMediaType
   | LengthRequired
+  | LengthMismatch
   | PayloadTooLarge
   | StorageUnavailable
   | DocumentNotFound

@@ -191,12 +191,13 @@ describe('cli against the worker', () => {
           try: () =>
             fetch(`${endpointFor(port)}${new URL(link).pathname}`, {
               method: 'POST',
+              redirect: 'manual',
               headers: { 'user-agent': 'Mozilla/5.0 (iPhone) Version/18 Mobile Safari/605' }
             }),
           catch: fail
         })
 
-        expect(paired.status).toBe(200)
+        expect(paired.status).toBe(303)
         expect(paired.headers.get('set-cookie')?.startsWith(`${SESSION_COOKIE}=`)).toBe(true)
 
         const devices = yield* runCliRequest({ command: 'devices', asJson: true, ...base }).pipe(

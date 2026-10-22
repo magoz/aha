@@ -59,6 +59,20 @@ describe('browser sessions', () => {
     })
   )
 
+  it.effect('creating a pairing sweeps unused expired codes', () =>
+    Effect.gen(function* () {
+      const ctx = makeTestContext()
+      yield* createPairing(ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+      yield* TestClock.adjust(PAIRING_TTL_MS + 1)
+      const fresh = yield* createPairing(ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+
+      expect(ctx.state.pairings.size).toBe(1)
+      expect(
+        yield* completePairing(fresh.code, null).pipe(Effect.provide(ctx.layer), Effect.isSuccess)
+      ).toBe(true)
+    })
+  )
+
   it.effect('only the owner creates pairings, lists and revokes sessions', () =>
     Effect.gen(function* () {
       const ctx = makeTestContext()

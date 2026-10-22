@@ -3,6 +3,7 @@ import { Effect } from 'effect'
 import {
   DocumentExists,
   DocumentNotFound,
+  LengthMismatch,
   PreconditionFailed,
   SessionNotFound,
   StorageUnavailable
@@ -130,7 +131,7 @@ export function createFakeStorage(state: FakeStorageState): AhaStorage {
 
           // Mirrors the length guard: a body that differs from its declared length is not stored.
           if (body.length !== upload.contentLength) {
-            return yield* new StorageUnavailable({ operation: 'putDocument:length-mismatch' })
+            return yield* new LengthMismatch({})
           }
 
           // Mirrors conditional `If-None-Match: *` / `If-Match` puts: checked and written atomically.
@@ -210,6 +211,16 @@ export function createFakeSessionStore(state: FakeStorageState): SessionStore {
           state.pairings.delete(codeHash)
 
           return expiresAt
+        })
+      ),
+    sweepPairings: (now) =>
+      guarded(state, 'sweepPairings', () =>
+        Effect.sync(() => {
+          for (const [codeHash, expiresAt] of state.pairings) {
+            if (expiresAt < now) {
+              state.pairings.delete(codeHash)
+            }
+          }
         })
       ),
     putSession: (session) =>

@@ -3,6 +3,7 @@ import { Effect, Layer, Option, Schema } from 'effect'
 import {
   DocumentExists,
   DocumentNotFound,
+  LengthMismatch,
   PreconditionFailed,
   SessionNotFound,
   StorageUnavailable
@@ -87,6 +88,33 @@ function pairingKey(codeHash: string): string {
   return `${PAIRING_PREFIX}${codeHash}`
 }
 
+interface BodyMeter {
+  readonly stream: ByteStream
+  // True when the body ended or overran its declared length, i.e. a failed put was the client's
+  // fault rather than R2's.
+  readonly mismatched: () => boolean
+}
+
+// Counts bytes on their way into the length guard, so a failed put can be classified.
+function meter(body: ByteStream, length: number): BodyMeter {
+  let seen = 0
+  let ended = false
+
+  const stream = body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.length
+        controller.enqueue(chunk)
+      },
+      flush() {
+        ended = true
+      }
+    })
+  )
+
+  return { stream, mismatched: () => seen > length || (ended && seen !== length) }
+}
+
 function call<A>(operation: string, run: () => Promise<A>): Effect.Effect<A, StorageUnavailable> {
   return Effect.tryPromise({ try: run, catch: () => new StorageUnavailable({ operation }) })
 }
@@ -164,12 +192,19 @@ export function makeR2Storage(bucket: R2BucketLike, guardLength: LengthGuard): A
         conditions.set('if-match', options.ifMatch)
       }
 
+      const metered = meter(upload.body, upload.contentLength)
+
       return call('putDocument', () =>
-        bucket.put(documentKey(id), guardLength(upload.body, upload.contentLength), {
+        bucket.put(documentKey(id), guardLength(metered.stream, upload.contentLength), {
           onlyIf: conditions,
           httpMetadata: { contentType: options.contentType }
         })
       ).pipe(
+        Effect.catchTag(
+          'StorageUnavailable',
+          (error): Effect.Effect<never, StorageUnavailable | LengthMismatch> =>
+            metered.mismatched() ? Effect.fail(new LengthMismatch({})) : Effect.fail(error)
+        ),
         Effect.flatMap((stored): Effect.Effect<string, PreconditionFailed | DocumentExists> => {
           if (stored !== null) {
             return Effect.succeed(stored.httpEtag)
@@ -253,6 +288,24 @@ export function makeR2SessionStore(bucket: R2BucketLike): SessionStore {
           onNone: () => null,
           onSome: (decoded) => decoded.expiresAt
         })
+      }),
+    sweepPairings: (now) =>
+      Effect.gen(function* () {
+        const pairings = yield* listAll(bucket, PAIRING_PREFIX, true)
+
+        for (const object of pairings) {
+          const metadata = yield* decodePairing(object.customMetadata).pipe(Effect.option)
+
+          // Claimed codes (left behind by an interrupted pairing) and unreadable entries go too.
+          const expired = Option.match(metadata, {
+            onNone: () => true,
+            onSome: (decoded) => decoded.expiresAt < now
+          })
+
+          if (expired) {
+            yield* call('sweepPairings', () => bucket.delete(object.key))
+          }
+        }
       }),
     putSession: (session) =>
       call('putSession', () =>

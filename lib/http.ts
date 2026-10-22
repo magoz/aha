@@ -20,6 +20,7 @@ import { withSecurityHeaders } from './security-headers.js'
 import {
   completePairing,
   createPairing,
+  isPairedBrowser,
   listSessions,
   revokeAllSessions,
   revokeSession,
@@ -303,12 +304,8 @@ function handleStatic(method: string, response: AhaResponse): AhaResponse {
   return errorResponse(405, 'method-not-allowed')
 }
 
-function cancelQuietly(body: ByteStream): Effect.Effect<void> {
-  return Effect.promise(() => body.cancel().catch(() => undefined))
-}
-
-// Streams a document the caller may read. HEAD never opens the body; a matching `If-None-Match`
-// answers 304 and releases the stream.
+// Streams a document the caller may read. HEAD and conditional requests check metadata first, so
+// neither opens the body unless it will be sent.
 function streamDocument(
   id: PlanId,
   isHead: boolean,
@@ -318,7 +315,7 @@ function streamDocument(
   return Effect.gen(function* () {
     const storage = yield* AhaStorageTag
 
-    if (isHead) {
+    if (isHead || ifNoneMatch !== null) {
       const head = yield* storage.headDocument(id)
 
       if (etagMatches(ifNoneMatch, head.etag)) {
@@ -328,6 +325,10 @@ function streamDocument(
           body: null
         }
       }
+    }
+
+    if (isHead) {
+      const head = yield* storage.headDocument(id)
 
       return {
         status: 200,
@@ -342,16 +343,6 @@ function streamDocument(
     }
 
     const document = yield* storage.getDocument(id)
-
-    if (etagMatches(ifNoneMatch, document.etag)) {
-      yield* cancelQuietly(document.body)
-
-      return {
-        status: 304,
-        headers: withSecurityHeaders({ etag: document.etag, ...extra }),
-        body: null
-      }
-    }
 
     return {
       status: 200,
@@ -442,6 +433,7 @@ function handleDocumentCollection(
       Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
       UnsupportedMediaType: () => Effect.succeed(errorResponse(415, 'unsupported-media-type')),
       LengthRequired: () => Effect.succeed(errorResponse(411, 'length-required')),
+      LengthMismatch: () => Effect.succeed(errorResponse(400, 'length-mismatch')),
       PayloadTooLarge: () => Effect.succeed(errorResponse(413, 'payload-too-large')),
       InvalidDocumentName: () => Effect.succeed(errorResponse(400, 'invalid-name')),
       DocumentExists: () => Effect.succeed(errorResponse(409, 'name-taken'))
@@ -490,6 +482,7 @@ function handleDocumentApi(
         Unauthorized: () => Effect.succeed(errorResponse(401, 'unauthorized')),
         UnsupportedMediaType: () => Effect.succeed(errorResponse(415, 'unsupported-media-type')),
         LengthRequired: () => Effect.succeed(errorResponse(411, 'length-required')),
+        LengthMismatch: () => Effect.succeed(errorResponse(400, 'length-mismatch')),
         PayloadTooLarge: () => Effect.succeed(errorResponse(413, 'payload-too-large')),
         DocumentNotFound: () => Effect.succeed(errorResponse(404, 'not-found')),
         PreconditionFailed: () => Effect.succeed(errorResponse(412, 'precondition-failed'))
@@ -560,17 +553,36 @@ function handlePairings(request: AhaRequest, method: string, config: ServiceConf
   )
 }
 
-// GET only shows a button, so link previews in chat apps cannot use up the code; POST pairs.
+function pairedPage(): AhaResponse {
+  return pairPage(
+    200,
+    'Browser paired',
+    '<h1>Browser paired</h1><p>Private Aha pages now open in this browser.</p>',
+    {}
+  )
+}
+
+// GET only shows a button, so link previews in chat apps cannot use up the code. POST pairs and
+// redirects back to GET, which then shows "paired" (a refresh never re-posts a used code).
 function handlePairPage(request: AhaRequest, method: string, code: string): Handled {
   if (method === 'GET' || method === 'HEAD') {
-    const page = pairPage(
-      200,
-      'Pair this browser',
-      '<h1>Pair this browser</h1><p>This browser will be able to open your private Aha pages.</p><form method="post"><button type="submit">Pair this browser</button></form>',
-      {}
-    )
+    const token = sessionTokenFromCookies(headerValue(request.headers, 'cookie'))
+    const alreadyPaired = token === null ? Effect.succeed(false) : isPairedBrowser(token)
 
-    return Effect.succeed(method === 'HEAD' ? { ...page, body: null } : page)
+    return alreadyPaired.pipe(
+      Effect.map((paired) =>
+        paired
+          ? pairedPage()
+          : pairPage(
+              200,
+              'Pair this browser',
+              '<h1>Pair this browser</h1><p>This browser will be able to open your private Aha pages.</p><form method="post"><button type="submit">Pair this browser</button></form>',
+              {}
+            )
+      ),
+      Effect.map((page) => (method === 'HEAD' ? { ...page, body: null } : page)),
+      Effect.catchTag('StorageUnavailable', storageUnavailable)
+    )
   }
 
   if (method !== 'POST') {
@@ -578,14 +590,14 @@ function handlePairPage(request: AhaRequest, method: string, code: string): Hand
   }
 
   return completePairing(code, headerValue(request.headers, 'user-agent')).pipe(
-    Effect.map((token) =>
-      pairPage(
-        200,
-        'Browser paired',
-        '<h1>Browser paired</h1><p>Private Aha pages now open in this browser.</p>',
-        { 'set-cookie': sessionCookie(token) }
-      )
-    ),
+    Effect.map((token): AhaResponse => ({
+      status: 303,
+      headers: withSecurityHeaders({
+        location: `/pair/${code}`,
+        'set-cookie': sessionCookie(token)
+      }),
+      body: null
+    })),
     Effect.catchTag('PairingInvalid', () =>
       Effect.succeed(
         pairPage(

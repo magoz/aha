@@ -52,6 +52,8 @@ export interface SessionStore {
   ) => Effect.Effect<void, StorageUnavailable>
   // Removes the pairing and returns its expiry, or null when there was none.
   readonly takePairing: (codeHash: string) => Effect.Effect<number | null, StorageUnavailable>
+  // Deletes pairings that expired before `now` (unused links), so they do not accumulate.
+  readonly sweepPairings: (now: number) => Effect.Effect<void, StorageUnavailable>
   readonly putSession: (session: BrowserSession) => Effect.Effect<void, StorageUnavailable>
   readonly sessionExists: (id: SessionId) => Effect.Effect<boolean, StorageUnavailable>
   readonly listSessions: () => Effect.Effect<ReadonlyArray<BrowserSession>, StorageUnavailable>
@@ -181,8 +183,11 @@ export function createPairing(
     }
 
     const store = yield* SessionStoreTag
+    const now = yield* Clock.currentTimeMillis
+    yield* store.sweepPairings(now)
+
     const code = randomToken(CODE_BYTES)
-    const expiresAt = (yield* Clock.currentTimeMillis) + PAIRING_TTL_MS
+    const expiresAt = now + PAIRING_TTL_MS
     yield* store.putPairing(yield* sha256Hex(code), expiresAt)
 
     return { code, expiresAt }

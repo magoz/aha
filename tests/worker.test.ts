@@ -175,7 +175,7 @@ describe('worker', () => {
       (body) => countingLengthGuard(body, 5)
     )
 
-    expect(lying.status).toBe(502)
+    expect(lying.status).toBe(400)
     expect(bucket.objects.has('aha/lying.html')).toBe(false)
   })
 
@@ -205,7 +205,13 @@ describe('worker', () => {
     expect(preview.headers.get('content-security-policy')).toContain("form-action 'self'")
 
     const first = await call(env, 'POST', path)
+    expect(first.status).toBe(303)
+    expect(first.headers.get('location')).toBe(path)
     expect(first.headers.get('set-cookie')?.startsWith(`${SESSION_COOKIE}=`)).toBe(true)
+
+    const cookie = (first.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+    const refreshed = await call(env, 'GET', path, { cookie })
+    expect(await refreshed.text()).toContain('Browser paired')
     expect(first.headers.get('set-cookie')).toContain('SameSite=Lax')
 
     const second = await call(env, 'POST', path)
@@ -222,8 +228,43 @@ describe('worker', () => {
     const path = new URL((await decode(created, UrlPayload)).url).pathname
     const results = await Promise.all([call(env, 'POST', path), call(env, 'POST', path)])
 
-    expect(results.map((result) => result.status).sort()).toEqual([200, 410])
+    expect(results.map((result) => result.status).sort()).toEqual([303, 410])
     expect(results.filter((result) => result.headers.get('set-cookie') !== null).length).toBe(1)
+  })
+
+  it('sweeps expired and leftover pairing codes when a new link is made', async () => {
+    const bucket = createFakeR2Bucket()
+    const env = envFor(bucket)
+    await bucket.put(`pairing/${'a'.repeat(64)}`, '', { customMetadata: { expiresAt: '1' } })
+    await bucket.put(`pairing/${'b'.repeat(64)}`, '', { customMetadata: { claimed: 'true' } })
+
+    expect((await call(env, 'POST', '/api/pair', owner)).status).toBe(201)
+
+    const left = Array.from(bucket.objects.keys()).filter((key) => key.startsWith('pairing/'))
+    expect(left.length).toBe(1)
+    expect(left[0]?.includes('a'.repeat(64)) || left[0]?.includes('b'.repeat(64))).toBe(false)
+  })
+
+  it('answers conditional requests without opening the body', async () => {
+    const bucket = createFakeR2Bucket()
+    const env = envFor(bucket)
+    await upload(env, 'conditional', SAMPLE)
+    await call(env, 'POST', '/api/documents/conditional/publish', owner)
+    const etag = (await call(env, 'HEAD', '/conditional')).headers.get('etag') ?? ''
+    const get = bucket.get
+    let opened = 0
+    bucket.get = (key) => {
+      opened += 1
+
+      return get(key)
+    }
+
+    expect((await call(env, 'GET', '/conditional', { 'if-none-match': etag })).status).toBe(304)
+    expect(opened).toBe(0)
+    expect((await call(env, 'GET', '/conditional', { 'if-none-match': '"other"' })).status).toBe(
+      200
+    )
+    expect(opened).toBe(1)
   })
 
   it('fails closed on storage outages and missing config', async () => {

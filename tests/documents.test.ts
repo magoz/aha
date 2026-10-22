@@ -347,7 +347,7 @@ describe('documents', () => {
         )
       )
 
-      expect(Predicate.isTagged(mismatch, 'StorageUnavailable')).toBe(true)
+      expect(Predicate.isTagged(mismatch, 'LengthMismatch')).toBe(true)
       expect(ctx.state.documents.size).toBe(0)
     })
   )

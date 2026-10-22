@@ -4,6 +4,7 @@ import { Context } from 'effect'
 import type {
   DocumentExists,
   DocumentNotFound,
+  LengthMismatch,
   PreconditionFailed,
   StorageUnavailable
 } from './errors.js'
@@ -55,7 +56,10 @@ export interface AhaStorage {
     id: PlanId,
     upload: DocumentUpload,
     options: PutOptions
-  ) => Effect.Effect<string, StorageUnavailable | PreconditionFailed | DocumentExists>
+  ) => Effect.Effect<
+    string,
+    StorageUnavailable | PreconditionFailed | DocumentExists | LengthMismatch
+  >
   readonly deleteDocument: (
     id: PlanId
   ) => Effect.Effect<void, StorageUnavailable | DocumentNotFound>

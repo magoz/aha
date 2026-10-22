@@ -25,6 +25,9 @@ export class PayloadTooLarge extends Schema.TaggedError<PayloadTooLarge>()('Payl
 // Uploads must declare their size up front; a body without `Content-Length` is refused (411).
 export class LengthRequired extends Schema.TaggedError<LengthRequired>()('LengthRequired', {}) {}
 
+// The body was longer or shorter than its declared `Content-Length`; nothing was stored.
+export class LengthMismatch extends Schema.TaggedError<LengthMismatch>()('LengthMismatch', {}) {}
+
 export class UnsupportedMediaType extends Schema.TaggedError<UnsupportedMediaType>()(
   'UnsupportedMediaType',
   { contentType: Schema.String }
