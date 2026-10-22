@@ -26,7 +26,6 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const stack = yield* Alchemy.Stack
-    const { accountId } = yield* yield* Cloudflare.CloudflareEnvironment
     const names = namesForStage(stack.stage)
 
     const bucket = yield* Cloudflare.R2.Bucket('aha-bucket', {
@@ -52,29 +51,6 @@ export default Alchemy.Stack(
       }
     })
 
-    if (stack.stage !== 'prod') {
-      return { bucketName: bucket.bucketName, url: worker.url }
-    }
-
-    // Legacy S3-API credential used only by the retired Vercel deployment. Remove this resource
-    // once aha.oox.sh redirects to the Worker.
-    const token = yield* Cloudflare.ApiToken.AccountApiToken('aha-r2-access', {
-      name: `${names.bucket}-service`,
-      policies: [
-        {
-          effect: 'allow',
-          permissionGroups: [
-            'Workers R2 Storage Bucket Item Read',
-            'Workers R2 Storage Bucket Item Write'
-          ],
-          resources: {
-            [`com.cloudflare.edge.r2.bucket.${accountId}_default_${names.bucket}`]: '*'
-          }
-        }
-      ]
-    })
-
-    // The token value remains in private Alchemy state, never in CLI output.
-    return { bucketName: bucket.bucketName, url: worker.url, r2TokenId: token.tokenId }
+    return { bucketName: bucket.bucketName, url: worker.url }
   })
 )

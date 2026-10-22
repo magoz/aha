@@ -43,8 +43,7 @@ Use synthetic pages only, against the dev stage first:
 
 ## Legacy `aha.oox.sh`
 
-The root `vercel.json` only redirects `aha.oox.sh/*` to `aha.o-o.co/*`
-(308, path kept). Deploy it to the existing Vercel project once the prod
-Worker is live, then retire the tailnet split DNS, Caddy site and private
-gateway for `aha.oox.sh`, and remove the legacy R2 API token resource and
-the old Vercel environment variables.
+The root `vercel.json` only redirects `aha.oox.sh/*` (and the
+`aha-origin.oox.sh` alias) to `aha.o-o.co/*` with a 308, keeping path and
+query. The Vercel project has no environment variables and no functions. The
+former tailnet gateway, split DNS and R2 API token are retired.
