@@ -33,7 +33,9 @@ Use synthetic pages only, against the dev stage first:
 
 1. `aha upload` a page over 5 MB, then `aha read` it back.
 2. Upload the same name again: 409. Upload a file over 95 MiB: refused by the
-   CLI; a raw request with a larger `Content-Length` returns 413.
+   CLI; a raw request with a real body over 95 MiB returns 413. (Cloudflare's
+   edge itself answers 400 when a body is shorter than its `Content-Length`,
+   and adds `Content-Length` to small chunked uploads before the Worker runs.)
 3. Private page: 404 in a fresh browser. `aha pair`, open the link, press the
    button, reload the page: it shows.
 4. `aha publish`: a private window shows it. `aha unpublish`: 404 again.

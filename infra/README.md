@@ -54,7 +54,7 @@ Authenticate with `pnpm exec alchemy login --configure --profile cloudflare-infr
 and choose API Token. The provisioning token needs Account API Tokens Edit,
 Workers R2 Storage Edit and Workers Scripts Edit for the account, plus Zone
 Read, DNS Edit and Workers Routes Edit on `o-o.co` for the custom domains
-(the first Worker plan shows whether anything is missing). Its permissions are
+(the token's Zone Resources must include `o-o.co`). Its permissions are
 account-wide, unlike the bucket-scoped application token it creates. Do not put
 the provisioning token in Vercel. Reusing an existing state backend avoids
 requiring additional Workers/Secrets Store bootstrap permissions.
