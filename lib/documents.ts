@@ -1,11 +1,12 @@
 import { Effect } from 'effect'
 
-import { canReadContent, identifyCaller } from './auth.js'
-import type { Caller } from './auth.js'
+import { isOwnerAuthorization } from './auth.js'
 import type { ServiceConfig } from './config.js'
 import {
   DocumentExists,
   DocumentNotFound,
+  LengthMismatch,
+  LengthRequired,
   PayloadTooLarge,
   PreconditionFailed,
   StorageUnavailable,
@@ -15,26 +16,50 @@ import {
 import { HTML_CONTENT_TYPE, MAX_HTML_BYTES, isHtmlContentType } from './html-limits.js'
 import { InvalidDocumentName, parseNewDocumentName, parsePlanId } from './plan-id.js'
 import type { InvalidPlanId, PlanId } from './plan-id.js'
+import { isPairedBrowser } from './sessions.js'
+import type { SessionStoreTag } from './sessions.js'
 import { AhaStorageTag } from './storage.js'
-import type { ListEntry, StoredDocument } from './storage.js'
+import type { DocumentUpload, ListEntry } from './storage.js'
 
 export interface UploadResult {
   readonly id: PlanId
   readonly etag: string
 }
 
-export interface ReadResult {
-  readonly document: StoredDocument
-  readonly isPublic: boolean
+// What a page request carries: the owner bearer (CLI) and/or the paired-browser cookie token.
+export interface ReaderCredentials {
+  readonly authorization: string | null
+  readonly sessionToken: string | null
 }
 
-function callerFromHeaders(authorization: string | null, config: ServiceConfig): Caller {
-  return identifyCaller(authorization, config.ownerToken, config.privateReadToken)
+// How a read was allowed. A paired-browser grant carries its token so the cookie can be renewed.
+export type ReadAccess =
+  | { readonly grant: 'owner'; readonly id: PlanId }
+  | { readonly grant: 'paired-browser'; readonly id: PlanId; readonly sessionToken: string }
+  | { readonly grant: 'public'; readonly id: PlanId }
+
+function checkUpload(
+  upload: DocumentUpload | null,
+  contentType: string
+): Effect.Effect<DocumentUpload, UnsupportedMediaType | LengthRequired | PayloadTooLarge> {
+  if (!isHtmlContentType(contentType)) {
+    return Effect.fail(new UnsupportedMediaType({ contentType }))
+  }
+
+  if (upload === null) {
+    return Effect.fail(new LengthRequired({}))
+  }
+
+  if (upload.contentLength > MAX_HTML_BYTES) {
+    return Effect.fail(new PayloadTooLarge({ limitBytes: MAX_HTML_BYTES }))
+  }
+
+  return Effect.succeed(upload)
 }
 
 export function uploadDocument(
   name: string | null,
-  body: Uint8Array,
+  upload: DocumentUpload | null,
   contentType: string,
   authorization: string | null,
   config: ServiceConfig
@@ -42,28 +67,21 @@ export function uploadDocument(
   UploadResult,
   | Unauthorized
   | UnsupportedMediaType
+  | LengthRequired
+  | LengthMismatch
   | PayloadTooLarge
   | InvalidDocumentName
   | StorageUnavailable
-  | DocumentNotFound
   | PreconditionFailed
   | DocumentExists,
   AhaStorageTag
 > {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
-
-    if (caller.role !== 'owner') {
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
       return yield* new Unauthorized({})
     }
 
-    if (!isHtmlContentType(contentType)) {
-      return yield* new UnsupportedMediaType({ contentType })
-    }
-
-    if (body.length > MAX_HTML_BYTES) {
-      return yield* new PayloadTooLarge({ limitBytes: MAX_HTML_BYTES })
-    }
+    const checked = yield* checkUpload(upload, contentType)
 
     if (name === null) {
       return yield* new InvalidDocumentName({ value: '' })
@@ -78,7 +96,7 @@ export function uploadDocument(
       return yield* new DocumentExists({ id })
     }
 
-    const etag = yield* storage.putDocument(id, body, {
+    const etag = yield* storage.putDocument(id, checked, {
       ifMatch: null,
       createOnly: true,
       contentType: HTML_CONTENT_TYPE
@@ -90,7 +108,7 @@ export function uploadDocument(
 
 export function updateDocument(
   idString: string,
-  body: Uint8Array,
+  upload: DocumentUpload | null,
   contentType: string,
   authorization: string | null,
   ifMatch: string | null,
@@ -99,6 +117,8 @@ export function updateDocument(
   string,
   | Unauthorized
   | UnsupportedMediaType
+  | LengthRequired
+  | LengthMismatch
   | PayloadTooLarge
   | StorageUnavailable
   | DocumentNotFound
@@ -108,25 +128,16 @@ export function updateDocument(
   AhaStorageTag
 > {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
-
-    if (caller.role !== 'owner') {
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
       return yield* new Unauthorized({})
     }
 
-    if (!isHtmlContentType(contentType)) {
-      return yield* new UnsupportedMediaType({ contentType })
-    }
-
-    if (body.length > MAX_HTML_BYTES) {
-      return yield* new PayloadTooLarge({ limitBytes: MAX_HTML_BYTES })
-    }
-
+    const checked = yield* checkUpload(upload, contentType)
     const id = yield* parsePlanId(idString)
     const storage = yield* AhaStorageTag
     yield* storage.headDocument(id)
 
-    return yield* storage.putDocument(id, body, {
+    return yield* storage.putDocument(id, checked, {
       ifMatch,
       createOnly: false,
       contentType: HTML_CONTENT_TYPE
@@ -134,35 +145,37 @@ export function updateDocument(
   })
 }
 
-export function readDocumentWithAccess(
+// Decides whether a page may be read; the caller then streams it. The owner and paired browsers
+// read any document; everyone else needs the publication marker. Storage failures fail closed.
+export function authorizeRead(
   idString: string,
-  authorization: string | null,
+  credentials: ReaderCredentials,
   config: ServiceConfig
 ): Effect.Effect<
-  ReadResult,
-  Unauthorized | StorageUnavailable | DocumentNotFound | InvalidPlanId,
-  AhaStorageTag
+  ReadAccess,
+  Unauthorized | StorageUnavailable | InvalidPlanId,
+  AhaStorageTag | SessionStoreTag
 > {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
     const id = yield* parsePlanId(idString)
-    const storage = yield* AhaStorageTag
 
-    if (canReadContent(caller)) {
-      const document = yield* storage.getDocument(id)
-
-      return { document, isPublic: false }
+    if (isOwnerAuthorization(credentials.authorization, config.ownerToken)) {
+      return { id, grant: 'owner' as const }
     }
 
-    const isPublic = yield* storage.markerExists(id)
+    const sessionToken = credentials.sessionToken
 
-    if (!isPublic) {
+    if (sessionToken !== null && (yield* isPairedBrowser(sessionToken))) {
+      return { id, grant: 'paired-browser' as const, sessionToken }
+    }
+
+    const storage = yield* AhaStorageTag
+
+    if (!(yield* storage.markerExists(id))) {
       return yield* new Unauthorized({})
     }
 
-    const document = yield* storage.getDocument(id)
-
-    return { document, isPublic: true }
+    return { id, grant: 'public' as const }
   })
 }
 
@@ -176,9 +189,7 @@ export function publishDocument(
   AhaStorageTag
 > {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
-
-    if (caller.role !== 'owner') {
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
       return yield* new Unauthorized({})
     }
 
@@ -199,9 +210,7 @@ export function unpublishDocument(
   AhaStorageTag
 > {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
-
-    if (caller.role !== 'owner') {
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
       return yield* new Unauthorized({})
     }
 
@@ -220,9 +229,7 @@ export function listDocuments(
   config: ServiceConfig
 ): Effect.Effect<ReadonlyArray<ListEntry>, Unauthorized | StorageUnavailable, AhaStorageTag> {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
-
-    if (caller.role !== 'owner') {
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
       return yield* new Unauthorized({})
     }
 
@@ -247,9 +254,7 @@ export function deleteDocument(
   AhaStorageTag
 > {
   return Effect.gen(function* () {
-    const caller = callerFromHeaders(authorization, config)
-
-    if (caller.role !== 'owner') {
+    if (!isOwnerAuthorization(authorization, config.ownerToken)) {
       return yield* new Unauthorized({})
     }
 

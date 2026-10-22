@@ -22,6 +22,12 @@ export class PayloadTooLarge extends Schema.TaggedError<PayloadTooLarge>()('Payl
   limitBytes: Schema.Number
 }) {}
 
+// Uploads must declare their size up front; a body without `Content-Length` is refused (411).
+export class LengthRequired extends Schema.TaggedError<LengthRequired>()('LengthRequired', {}) {}
+
+// The body was longer or shorter than its declared `Content-Length`; nothing was stored.
+export class LengthMismatch extends Schema.TaggedError<LengthMismatch>()('LengthMismatch', {}) {}
+
 export class UnsupportedMediaType extends Schema.TaggedError<UnsupportedMediaType>()(
   'UnsupportedMediaType',
   { contentType: Schema.String }
@@ -29,17 +35,13 @@ export class UnsupportedMediaType extends Schema.TaggedError<UnsupportedMediaTyp
 
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()('Unauthorized', {}) {}
 
-export class Forbidden extends Schema.TaggedError<Forbidden>()('Forbidden', {}) {}
-
 export class InvalidConfig extends Schema.TaggedError<InvalidConfig>()('InvalidConfig', {
   detail: Schema.String
 }) {}
 
-export class UpstreamError extends Schema.TaggedError<UpstreamError>()('UpstreamError', {
-  detail: Schema.String
-}) {}
+// A pairing code that is unknown, already used or expired. Deliberately one error for all three.
+export class PairingInvalid extends Schema.TaggedError<PairingInvalid>()('PairingInvalid', {}) {}
 
-export class RequestBodyFailed extends Schema.TaggedError<RequestBodyFailed>()(
-  'RequestBodyFailed',
-  {}
-) {}
+export class SessionNotFound extends Schema.TaggedError<SessionNotFound>()('SessionNotFound', {
+  id: Schema.String
+}) {}

@@ -1,27 +1,49 @@
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Predicate } from 'effect'
 
+import type { ServiceConfig } from '../lib/config.js'
 import {
+  authorizeRead,
   deleteDocument,
   listDocuments,
   publishDocument,
-  readDocumentWithAccess,
   unpublishDocument,
   updateDocument,
   uploadDocument
 } from '../lib/documents.js'
+import { MAX_HTML_BYTES } from '../lib/html-limits.js'
+import { completePairing, createPairing } from '../lib/sessions.js'
+import { AhaStorageTag } from '../lib/storage.js'
+import { collect, streamOf } from './fake-storage.js'
 import {
   TEST_CONFIG,
   bytesToString,
   htmlBytes,
   makeTestContext,
   ownerAuth,
-  privateAuth
+  uploadOf
 } from './helpers.js'
 
 const SAMPLE = '<!doctype html><html><body><p>synthetic fixture</p></body></html>'
 
 const LEGACY_ID = 'AbCdEfGhIjKlMnOpQr_-12'
+
+// Authorizes like a page request, then reads the whole body for assertions.
+function readDocumentWithAccess(
+  id: string,
+  authorization: string | null,
+  config: ServiceConfig,
+  sessionToken: string | null = null
+) {
+  return Effect.gen(function* () {
+    const access = yield* authorizeRead(id, { authorization, sessionToken }, config)
+    const storage = yield* AhaStorageTag
+    const document = yield* storage.getDocument(access.id)
+    const text = bytesToString(yield* Effect.promise(() => collect(document.body)))
+
+    return { document: { text, etag: document.etag }, grant: access.grant }
+  })
+}
 
 describe('documents', () => {
   it.effect('uploads privately and reads back with owner token', () =>
@@ -30,7 +52,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -40,7 +62,7 @@ describe('documents', () => {
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(read.document.body)).toBe(SAMPLE)
+      expect(read.document.text).toBe(SAMPLE)
       expect(read.document.etag.length > 0).toBe(true)
     })
   )
@@ -51,7 +73,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -71,7 +93,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -83,7 +105,7 @@ describe('documents', () => {
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(open.document.body)).toBe(SAMPLE)
+      expect(open.document.text).toBe(SAMPLE)
 
       yield* unpublishDocument(created.id, ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
 
@@ -95,32 +117,44 @@ describe('documents', () => {
     })
   )
 
-  it.effect('grants private-read token content access but no mutations', () =>
+  it.effect('paired browsers read private documents but nothing else', () =>
     Effect.gen(function* () {
       const ctx = makeTestContext()
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
       ).pipe(Effect.provide(ctx.layer))
 
-      const read = yield* readDocumentWithAccess(created.id, privateAuth(), TEST_CONFIG).pipe(
+      const pairing = yield* createPairing(ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+      const token = yield* completePairing(pairing.code, null).pipe(Effect.provide(ctx.layer))
+
+      const read = yield* readDocumentWithAccess(created.id, null, TEST_CONFIG, token).pipe(
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(read.document.body)).toBe(SAMPLE)
+      expect(read.document.text).toBe(SAMPLE)
+      expect(read.grant).toBe('paired-browser')
 
-      const publishFailure = yield* Effect.flip(
-        publishDocument(created.id, privateAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+      const forged = yield* Effect.flip(
+        readDocumentWithAccess(created.id, null, TEST_CONFIG, 'x'.repeat(43)).pipe(
+          Effect.provide(ctx.layer)
+        )
       )
 
-      expect(Predicate.isTagged(publishFailure, 'Unauthorized')).toBe(true)
+      expect(Predicate.isTagged(forged, 'Unauthorized')).toBe(true)
+
+      const asBearer = yield* Effect.flip(
+        publishDocument(created.id, `Bearer ${token}`, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+      )
+
+      expect(Predicate.isTagged(asBearer, 'Unauthorized')).toBe(true)
 
       const listFailure = yield* Effect.flip(
-        listDocuments(privateAuth(), false, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
+        listDocuments(`Bearer ${token}`, false, TEST_CONFIG).pipe(Effect.provide(ctx.layer))
       )
 
       expect(Predicate.isTagged(listFailure, 'Unauthorized')).toBe(true)
@@ -133,7 +167,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -155,7 +189,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -167,7 +201,7 @@ describe('documents', () => {
 
       const etag = yield* updateDocument(
         created.id,
-        htmlBytes(revised),
+        uploadOf(revised),
         'text/html',
         ownerAuth(),
         null,
@@ -180,12 +214,12 @@ describe('documents', () => {
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(open.document.body)).toBe(revised)
+      expect(open.document.text).toBe(revised)
 
       const conflict = yield* Effect.flip(
         updateDocument(
           created.id,
-          htmlBytes(revised),
+          uploadOf(revised),
           'text/html',
           ownerAuth(),
           '"stale"',
@@ -204,7 +238,7 @@ describe('documents', () => {
       const failure = yield* Effect.flip(
         updateDocument(
           'AAAAAAAAAAAAAAAAAAAAAA',
-          htmlBytes(SAMPLE),
+          uploadOf(SAMPLE),
           'text/html',
           ownerAuth(),
           null,
@@ -222,7 +256,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -253,7 +287,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -278,7 +312,7 @@ describe('documents', () => {
       const wrongType = yield* Effect.flip(
         uploadDocument(
           'wrong-type',
-          htmlBytes(SAMPLE),
+          uploadOf(SAMPLE),
           'application/json',
           ownerAuth(),
           TEST_CONFIG
@@ -287,7 +321,7 @@ describe('documents', () => {
 
       expect(Predicate.isTagged(wrongType, 'UnsupportedMediaType')).toBe(true)
 
-      const big = new Uint8Array(2 * 1024 * 1024 + 1)
+      const big = { body: streamOf(new Uint8Array(0)), contentLength: MAX_HTML_BYTES + 1 }
 
       const tooLarge = yield* Effect.flip(
         uploadDocument('too-big', big, 'text/html', ownerAuth(), TEST_CONFIG).pipe(
@@ -296,6 +330,25 @@ describe('documents', () => {
       )
 
       expect(Predicate.isTagged(tooLarge, 'PayloadTooLarge')).toBe(true)
+
+      const unsized = yield* Effect.flip(
+        uploadDocument('no-length', null, 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+      )
+
+      expect(Predicate.isTagged(unsized, 'LengthRequired')).toBe(true)
+
+      const lying = { body: streamOf(htmlBytes(SAMPLE)), contentLength: 3 }
+
+      const mismatch = yield* Effect.flip(
+        uploadDocument('lying-length', lying, 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
+      )
+
+      expect(Predicate.isTagged(mismatch, 'LengthMismatch')).toBe(true)
+      expect(ctx.state.documents.size).toBe(0)
     })
   )
 
@@ -305,7 +358,7 @@ describe('documents', () => {
 
       const first = yield* uploadDocument(
         'sample-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -313,7 +366,7 @@ describe('documents', () => {
 
       const second = yield* uploadDocument(
         'second-doc',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -342,7 +395,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'q3-launch-plan',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -360,7 +413,7 @@ describe('documents', () => {
 
       const original = yield* uploadDocument(
         'taken-name',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -371,7 +424,7 @@ describe('documents', () => {
       const clash = yield* Effect.flip(
         uploadDocument(
           'taken-name',
-          htmlBytes('<!doctype html><p>intruder</p>'),
+          uploadOf('<!doctype html><p>intruder</p>'),
           'text/html',
           ownerAuth(),
           TEST_CONFIG
@@ -384,7 +437,7 @@ describe('documents', () => {
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(read.document.body)).toBe(SAMPLE)
+      expect(read.document.text).toBe(SAMPLE)
       expect(read.document.etag).toBe(original.etag)
     })
   )
@@ -396,13 +449,9 @@ describe('documents', () => {
       ctx.state.markers.add('orphan-name')
 
       const clash = yield* Effect.flip(
-        uploadDocument(
-          'orphan-name',
-          htmlBytes(SAMPLE),
-          'text/html',
-          ownerAuth(),
-          TEST_CONFIG
-        ).pipe(Effect.provide(ctx.layer))
+        uploadDocument('orphan-name', uploadOf(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+          Effect.provide(ctx.layer)
+        )
       )
 
       expect(Predicate.isTagged(clash, 'DocumentExists')).toBe(true)
@@ -418,7 +467,7 @@ describe('documents', () => {
       ctx.state.failAll = true
 
       const failure = yield* Effect.flip(
-        uploadDocument('any-name', htmlBytes(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+        uploadDocument('any-name', uploadOf(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
           Effect.provide(ctx.layer)
         )
       )
@@ -446,7 +495,7 @@ describe('documents', () => {
 
       const created = yield* uploadDocument(
         'orphan-name',
-        htmlBytes(SAMPLE),
+        uploadOf(SAMPLE),
         'text/html',
         ownerAuth(),
         TEST_CONFIG
@@ -464,7 +513,7 @@ describe('documents', () => {
 
       for (const name of names) {
         const failure = yield* Effect.flip(
-          uploadDocument(name, htmlBytes(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
+          uploadDocument(name, uploadOf(SAMPLE), 'text/html', ownerAuth(), TEST_CONFIG).pipe(
             Effect.provide(ctx.layer)
           )
         )
@@ -481,9 +530,13 @@ describe('documents', () => {
       const ctx = makeTestContext()
 
       const failure = yield* Effect.flip(
-        uploadDocument(null, htmlBytes(SAMPLE), 'text/html', privateAuth(), TEST_CONFIG).pipe(
-          Effect.provide(ctx.layer)
-        )
+        uploadDocument(
+          null,
+          uploadOf(SAMPLE),
+          'text/html',
+          'Bearer not-the-owner',
+          TEST_CONFIG
+        ).pipe(Effect.provide(ctx.layer))
       )
 
       expect(Predicate.isTagged(failure, 'Unauthorized')).toBe(true)
@@ -500,7 +553,7 @@ describe('documents', () => {
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(owner.document.body)).toBe(SAMPLE)
+      expect(owner.document.text).toBe(SAMPLE)
 
       yield* publishDocument(LEGACY_ID, ownerAuth(), TEST_CONFIG).pipe(Effect.provide(ctx.layer))
 
@@ -508,7 +561,7 @@ describe('documents', () => {
 
       yield* updateDocument(
         LEGACY_ID,
-        htmlBytes(revised),
+        uploadOf(revised),
         'text/html',
         ownerAuth(),
         '"legacy"',
@@ -519,8 +572,8 @@ describe('documents', () => {
         Effect.provide(ctx.layer)
       )
 
-      expect(bytesToString(open.document.body)).toBe(revised)
-      expect(open.isPublic).toBe(true)
+      expect(open.document.text).toBe(revised)
+      expect(open.grant).toBe('public')
     })
   )
 })

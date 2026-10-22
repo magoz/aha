@@ -1,20 +1,22 @@
-import { timingSafeEqual } from 'node:crypto'
+const textEncoder = new TextEncoder()
 
-export type CallerRole = 'owner' | 'private-read' | 'anonymous'
-
-export interface Caller {
-  readonly role: CallerRole
-}
-
-function credentialsEqual(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided, 'utf8')
-  const b = Buffer.from(expected, 'utf8')
+// Compares every byte so the time taken does not reveal how much of a guess was right. Runs the same
+// in Node and Workers (no `node:crypto`).
+export function constantTimeEqual(provided: string, expected: string): boolean {
+  const a = textEncoder.encode(provided)
+  const b = textEncoder.encode(expected)
 
   if (a.length !== b.length) {
     return false
   }
 
-  return timingSafeEqual(a, b)
+  let difference = 0
+
+  for (let index = 0; index < a.length; index += 1) {
+    difference |= (a[index] ?? 0) ^ (b[index] ?? 0)
+  }
+
+  return difference === 0
 }
 
 export function bearerToken(authorization: string | null): string | null {
@@ -37,32 +39,10 @@ export function bearerToken(authorization: string | null): string | null {
   return token
 }
 
-export function identifyCaller(
-  authorization: string | null,
-  ownerToken: string,
-  privateReadToken: string
-): Caller {
+// The owner bearer is the only credential for writes, listing, publishing and pairing. Browsers
+// never send it on their own, so cookie-bearing cross-site requests cannot reach those actions.
+export function isOwnerAuthorization(authorization: string | null, ownerToken: string): boolean {
   const token = bearerToken(authorization)
 
-  if (token === null) {
-    return { role: 'anonymous' }
-  }
-
-  if (credentialsEqual(token, ownerToken)) {
-    return { role: 'owner' }
-  }
-
-  if (credentialsEqual(token, privateReadToken)) {
-    return { role: 'private-read' }
-  }
-
-  return { role: 'anonymous' }
-}
-
-export function isOwner(caller: Caller): boolean {
-  return caller.role === 'owner'
-}
-
-export function canReadContent(caller: Caller): boolean {
-  return caller.role === 'owner' || caller.role === 'private-read'
+  return token !== null && constantTimeEqual(token, ownerToken)
 }

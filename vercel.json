@@ -1,34 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
+  "redirects": [
     {
       "source": "/",
-      "destination": "/api/root"
+      "destination": "https://aha.o-o.co/",
+      "permanent": true
     },
     {
-      "source": "/:id([A-Za-z0-9_-]{1,80})",
-      "destination": "/api/public-document?id=:id"
+      "source": "/:path*",
+      "destination": "https://aha.o-o.co/:path*",
+      "permanent": true
     }
   ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "no-referrer"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    }
-  ],
-  "devCommand": "pnpm dev",
+  "buildCommand": "true",
   "outputDirectory": "public"
 }

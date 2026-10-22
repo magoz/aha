@@ -6,7 +6,7 @@ import { DEFAULT_PUBLIC_URL } from '../lib/config.js'
 import type { EnvMap } from '../lib/headers.js'
 import { isPlanId } from '../lib/plan-id.js'
 
-export const DEFAULT_ENDPOINT = 'https://aha.oox.sh'
+export const DEFAULT_ENDPOINT = DEFAULT_PUBLIC_URL
 
 export class CliUsageError extends Schema.TaggedError<CliUsageError>()('CliUsageError', {
   message: Schema.String
@@ -70,6 +70,30 @@ export interface ReadRequest {
   readonly token: string
 }
 
+export interface PairRequest {
+  readonly command: 'pair'
+  readonly endpoint: string
+  readonly token: string
+}
+
+export interface DevicesRequest {
+  readonly command: 'devices'
+  readonly asJson: boolean
+  readonly endpoint: string
+  readonly token: string
+}
+
+export type UnpairTarget =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'id'; readonly prefix: string }
+
+export interface UnpairRequest {
+  readonly command: 'unpair'
+  readonly target: UnpairTarget
+  readonly endpoint: string
+  readonly token: string
+}
+
 export interface BuildRequest {
   readonly command: 'build'
   readonly input: string
@@ -88,6 +112,9 @@ export type CliRequest =
   | SimpleRequest
   | ListRequest
   | ReadRequest
+  | PairRequest
+  | DevicesRequest
+  | UnpairRequest
   | BuildRequest
   | ComponentsRequest
 
@@ -312,7 +339,7 @@ export function parseCliArgs(
 
     if (command === undefined) {
       return fail(
-        'usage: aha <upload|update|publish|unpublish|list|read|delete|build|components> ...'
+        'usage: aha <upload|update|publish|unpublish|list|read|delete|pair|devices|unpair|build|components> ...'
       )
     }
 
@@ -475,6 +502,37 @@ export function parseCliArgs(
         }),
         ({ endpoint, token }) =>
           Effect.succeed({ command: 'read' as const, id, output, endpoint, token })
+      )
+    }
+
+    if (command === 'pair' || command === 'devices' || command === 'unpair') {
+      const asJson = args.includes('--json')
+      const all = args.includes('--all')
+      const prefix = args.slice(1).find((entry) => !entry.startsWith('--'))
+
+      if (command === 'unpair' && (all ? prefix !== undefined : prefix === undefined)) {
+        return fail('usage: aha unpair ID | --all')
+      }
+
+      return Effect.flatMap(
+        Effect.all({
+          endpoint: validateEndpoint(globals.endpoint),
+          token: resolveOwnerToken(globals.token, env)
+        }),
+        ({ endpoint, token }): Effect.Effect<CliRequest> => {
+          if (command === 'pair') {
+            return Effect.succeed({ command, endpoint, token })
+          }
+
+          if (command === 'devices') {
+            return Effect.succeed({ command, asJson, endpoint, token })
+          }
+
+          const target: UnpairTarget =
+            prefix === undefined ? { kind: 'all' } : { kind: 'id', prefix }
+
+          return Effect.succeed({ command, target, endpoint, token })
+        }
       )
     }
 

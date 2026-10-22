@@ -17,7 +17,7 @@ page in one pass, and preview once more only after a fix.
    blocked). No `<script src>`, `fetch`/network, storage, forms, frames or
    external resources; inline any library you need. Images and fonts must be
    `data:` URIs. The page should read fine before scripts run. Keep it under
-   2 MiB.
+   95 MiB.
    Start from `templates/note.html` (short) or `templates/plan.html` (long) in
    this repository and follow the
    [document style](#document-style) below.
@@ -68,7 +68,7 @@ page in one pass, and preview once more only after a fix.
 
    ```sh
    aha upload ./page.built.html [--name "Short Name"]
-   # prints {"id":"<id>","url":"https://aha.oox.sh/<id>","etag":"..."}
+   # prints {"id":"<id>","url":"https://aha.o-o.co/<id>","etag":"..."}
    ```
 
    The ID is a readable slug of `--name`, or of the page `<title>` when
@@ -173,8 +173,8 @@ second accent color, a serif.
 - Report back with the id/URL and at most a few lines on anything the owner
   should know.
 - Configure via `--endpoint`/`AHA_ENDPOINT` (default
-  `https://aha.oox.sh`; loopback `http:` only for development) and
-  `--token`/`AHA_OWNER_TOKEN`. On split-DNS tailnets, set the endpoint
-  to the public deployment alias (the gateway at the default URL rejects
-  `/api/*`); share links still use `AHA_PUBLIC_URL`
-  (default `https://aha.oox.sh`).
+  `https://aha.o-o.co`; loopback `http:` only for development) and
+  `--token`/`AHA_OWNER_TOKEN`; share links use `AHA_PUBLIC_URL`
+  (default `https://aha.o-o.co`).
+- The owner views private pages in browsers paired with `aha pair`. Only run
+  `aha pair`, `aha devices` or `aha unpair` when the owner asks.

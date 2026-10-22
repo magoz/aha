@@ -22,8 +22,8 @@ describe('cli parser', () => {
 
       expect(request.file).toBe('./page.html')
       expect(request.name).toBe(null)
-      expect(request.endpoint).toBe('https://aha.oox.sh')
-      expect(request.publicUrl).toBe('https://aha.oox.sh')
+      expect(request.endpoint).toBe('https://aha.o-o.co')
+      expect(request.publicUrl).toBe('https://aha.o-o.co')
       expect(request.token).toBe('owner-token-for-tests')
     })
   )
@@ -227,6 +227,30 @@ describe('cli parser', () => {
       const rejected = yield* Effect.flip(validateEndpoint('http://example.com'))
 
       expect(Predicate.isTagged(rejected, 'CliUsageError')).toBe(true)
+    })
+  )
+
+  it.effect('parses pairing commands', () =>
+    Effect.gen(function* () {
+      const pair = yield* parseCliArgs(['pair'], TOKEN_ENV)
+      const devices = yield* parseCliArgs(['devices', '--json'], TOKEN_ENV)
+      const one = yield* parseCliArgs(['unpair', '3fa9c1'], TOKEN_ENV)
+      const all = yield* parseCliArgs(['unpair', '--all'], TOKEN_ENV)
+
+      expect(pair).toEqual({
+        command: 'pair',
+        endpoint: 'https://aha.o-o.co',
+        token: TOKEN_ENV.AHA_OWNER_TOKEN
+      })
+      expect(devices.command === 'devices' && devices.asJson).toBe(true)
+      expect(one.command === 'unpair' ? one.target : null).toEqual({ kind: 'id', prefix: '3fa9c1' })
+      expect(all.command === 'unpair' ? all.target : null).toEqual({ kind: 'all' })
+
+      for (const args of [['unpair'], ['unpair', 'abc', '--all']]) {
+        const rejected = yield* Effect.flip(parseCliArgs(args, TOKEN_ENV))
+
+        expect(Predicate.isTagged(rejected, 'CliUsageError')).toBe(true)
+      }
     })
   )
 })

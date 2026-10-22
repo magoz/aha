@@ -1,12 +1,8 @@
-import { Schema } from 'effect'
-
 export const HTML_CONTENT_TYPE = 'text/html; charset=utf-8'
 
-export const MAX_HTML_BYTES = 2 * 1024 * 1024
-
-export class ContentTooLarge extends Schema.TaggedError<ContentTooLarge>()('ContentTooLarge', {
-  limitBytes: Schema.Number
-}) {}
+// Workers accept request bodies up to 100 MB (decimal) on Free and Pro zones; 95 MiB leaves room
+// for headers. One limit for CLI, Worker and preview.
+export const MAX_HTML_BYTES = 95 * 1024 * 1024
 
 export function isHtmlContentType(value: string): boolean {
   const lowered = value.toLowerCase()
@@ -17,12 +13,4 @@ export function isHtmlContentType(value: string): boolean {
   }
 
   return main.trim() === 'text/html'
-}
-
-export function byteLengthOf(body: Uint8Array): number {
-  return body.length
-}
-
-export function withinLimit(body: Uint8Array): boolean {
-  return body.length <= MAX_HTML_BYTES
 }
